@@ -1,0 +1,8 @@
+{
+ "versie": 1,
+ "uitleg": "Versleutelde aandelenlijst van de Koersvergelijker (AES-256-GCM, PBKDF2).",
+ "iter": 310000,
+ "salt": "pr1QJheYkLOD2mFGg7iT0g==",
+ "iv": "B/FfKrnyHLJgWXOc",
+ "data": "lLbE5Z/QsDhmPQoflrcyDOJ2vnjn9n2/pqsbMqhA7jAboOu19Lu0XS2Oyb0f/F9EAGYjgQgJsjaz58/M/KgCIt5/te7Aviw/pa0Ajo5pS1HBSI49BGP7vUuEodtBVKG7avnmTrf4g6JaNiQBKYVKKmR4SBZVoqwdzWQNBDWI0SYkOlNEUaxpxpgw6CO5LwC2Lv8e6MutzUH/yua+jlKCOSNWEngOUB8CtfFBZklA5bfDqreyKmzHnwDAk+FAPN4="
+}
