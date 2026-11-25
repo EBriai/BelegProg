@@ -97,6 +97,11 @@ def resolve(query):
         data["candidates"] = [c for c in data["candidates"] if c["symbol"].split(".")[0] == base]
         return data
     cands = search(query)
+    base = query.split(".")[0]
+    if not cands and "." in query:          # bijv. BNKR.TO bestaat niet, maar BNKR.V wel
+        cands = search(base)
+    # zelfde basissymbool eerst (RHM -> RHM.DE), dan de rest
+    cands.sort(key=lambda c: c["symbol"].split(".")[0] != base)
     for c in cands[:3]:
         data = fetch(c["symbol"])
         if data:

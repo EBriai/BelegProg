@@ -114,3 +114,7 @@ td:first-child .swatch { margin-right: 8px; vertical-align: -1px; }
 select.alt { font-size: 13px; min-height: 34px; padding: 4px 8px; margin-left: 28px; width: calc(100% - 28px); }
 .setup-cta { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 500; }
 .setup-cta[hidden] { display: none; }
+.bulk { display: flex; flex-direction: column; gap: 6px; }
+.bulk summary { cursor: pointer; color: var(--accent); font-size: 14px; }
+.bulk[open] { display: flex; }
+#bulk { font: 13px/1.4 var(--font-num); text-transform: uppercase; }

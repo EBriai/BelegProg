@@ -40,6 +40,12 @@
       <select id="exchange" aria-label="Beurs"></select>
     </form>
     <p class="hint">Typ de ticker zoals je hem kent (RHM, ASML) of een naam (Rheinmetall). De app kiest de hoofdbeurs. Een beurs kun je kiezen of erbij typen: <code>RHM FWB</code>, <code>RHM XETRA</code>, <code>ASML AMS</code>.</p>
+    <details class="bulk">
+      <summary>Meerdere tegelijk toevoegen</summary>
+      <label for="bulk" class="hint">Plak je lijst, één aandeel per regel, bijvoorbeeld uit je broker: <code>LDO BVME</code>, <code>RGTI NASDAQ.SCM</code>, <code>2618 SEHK</code>.</label>
+      <textarea id="bulk" rows="6" spellcheck="false"></textarea>
+      <button id="bulk-btn" type="button">Alles toevoegen</button>
+    </details>
     <p id="msg" role="status" aria-live="polite"></p>
     <ul id="stocks"></ul>
     <button id="setup-hint" type="button" class="setup-cta" hidden>Eenmalig instellen om echte koersen op te halen</button>

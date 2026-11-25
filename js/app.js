@@ -27,27 +27,36 @@
   };
   // Beurzen: Yahoo-achtervoegsel, afkortingen (de eerste wordt getoond) en volledige naam.
   const EXCHANGES = [
-    [".AS", ["AMS", "EAM", "AEX"], "Euronext Amsterdam"], [".BR", ["BRU", "EBR"], "Euronext Brussel"],
-    [".PA", ["PAR", "EPA"], "Euronext Parijs"], [".LS", ["LIS", "ELI"], "Euronext Lissabon"], [".IR", ["ISE", "EDU"], "Euronext Dublin"],
+    [".AS", ["AMS", "AEB", "EAM", "AEX"], "Euronext Amsterdam"], [".BR", ["BRU", "EBR", "ENEXT.BE"], "Euronext Brussel"],
+    [".PA", ["PAR", "SBF", "EPA"], "Euronext Parijs"], [".LS", ["LIS", "ELI"], "Euronext Lissabon"], [".IR", ["ISE", "EDU"], "Euronext Dublin"],
     [".DE", ["XETRA", "IBIS", "XETR", "ETR", "GER"], "Xetra (elektronisch handelsplatform van de Deutsche Börse)"],
     [".F", ["FWB", "FRA", "FSE"], "Frankfurter Wertpapierbörse (parkethandel)"],
     [".BE", ["BER"], "Börse Berlin"], [".DU", ["DUS"], "Börse Düsseldorf"], [".HM", ["HAM"], "Börse Hamburg"],
-    [".MU", ["MUN"], "Börse München"], [".SG", ["STU"], "Börse Stuttgart"],
-    [".L", ["LSE", "LON"], "London Stock Exchange"], [".MI", ["MIL", "BIT"], "Borsa Italiana, Milaan"], [".MC", ["BME", "MCE"], "Bolsa de Madrid"],
-    [".SW", ["SIX", "SWX", "VTX"], "SIX Swiss Exchange, Zürich"], [".VI", ["VIE", "WBAG"], "Wiener Börse"], [".WA", ["WSE", "GPW"], "Warschau"],
+    [".MU", ["MUN"], "Börse München"], [".SG", ["SWB", "STU"], "Börse Stuttgart"],
+    [".L", ["LSE", "LON", "LSEETF"], "London Stock Exchange"], [".MI", ["MIL", "BVME", "BIT"], "Borsa Italiana, Milaan"], [".MC", ["BME", "MCE", "BM"], "Bolsa de Madrid"],
+    [".SW", ["SIX", "EBS", "SWX", "VTX"], "SIX Swiss Exchange, Zürich"], [".VI", ["VIE", "WBAG"], "Wiener Börse"], [".WA", ["WSE", "GPW"], "Warschau"],
     [".ST", ["STO", "OMX"], "Nasdaq Stockholm"], [".CO", ["CPH"], "Nasdaq Kopenhagen"], [".HE", ["HEL"], "Nasdaq Helsinki"], [".OL", ["OSL", "OSE"], "Oslo Børs"],
-    ["=US", ["NYSE", "NASDAQ", "US", "NMS", "NYQ"], "Verenigde Staten"], [".TO", ["TSX", "TOR"], "Toronto Stock Exchange"],
-    [".T", ["TSE", "TYO", "JPX"], "Tokyo Stock Exchange"], [".HK", ["HKEX", "HKG"], "Hong Kong Exchange"], [".AX", ["ASX"], "Australian Securities Exchange"],
+    ["=US", ["NYSE", "NASDAQ", "ARCA", "AMEX", "US", "NMS", "NYQ"], "Verenigde Staten"],
+    // TSE = Toronto, zoals bij Interactive Brokers (Tokio = TSEJ)
+    [".TO", ["TSX", "TSE", "TOR"], "Toronto Stock Exchange"], [".V", ["TSXV", "VENTURE", "CDNX"], "TSX Venture Exchange"],
+    [".CN", ["CSE"], "Canadian Securities Exchange"],
+    [".T", ["TYO", "TSEJ", "JPX"], "Tokyo Stock Exchange"], [".HK", ["HKEX", "SEHK", "HKG"], "Hong Kong Exchange"], [".AX", ["ASX"], "Australian Securities Exchange"],
   ];
-  const exchByCode = (code) => EXCHANGES.find(([, codes]) => codes.includes(code.toUpperCase()));
-  const exchCodes = (e) => (e[0] === "=US" ? "NYSE / NASDAQ" : e[1].slice(0, e[0] === ".DE" ? 2 : 1).join(" / "));
+  // "NASDAQ.NMS" en "NYSE.ARCA" (Interactive Brokers) tellen als NASDAQ/NYSE
+  const exchByCode = (code) => {
+    const c = code.toUpperCase();
+    return EXCHANGES.find(([, codes]) => codes.includes(c)) || EXCHANGES.find(([, codes]) => codes.includes(c.split(".")[0]) && /^(NASDAQ|NYSE)\./.test(c));
+  };
+  const exchCodes = (e) => (e[0] === "=US" ? "NYSE / NASDAQ" : e[1].slice(0, 2).join(" / "));
 
   /** Begrijpt "RHM FWB", "RHM.FWB", "FWB:RHM" en "RHM" + gekozen beurs. */
   function parseInput(raw, suffix) {
     let t = raw.trim().toUpperCase().replace(/\s+/g, " ");
-    let m = /^([A-Z]{2,6}):(.+)$/.exec(t) || null;                 // FWB:RHM (zoals op Google)
+    let m = /^([A-Z.]{2,10}):(.+)$/.exec(t) || null;                       // FWB:RHM (zoals op Google)
     if (m && exchByCode(m[1])) { suffix = exchByCode(m[1])[0]; t = m[2]; }
-    else if ((m = /^(.+?)[ .]([A-Z]{2,6})$/.exec(t)) && exchByCode(m[2])) { suffix = exchByCode(m[2])[0]; t = m[1]; } // RHM FWB / RHM.FWB
+    else if ((m = /^(.+?) ([A-Z][A-Z.]{1,10})$/.exec(t)) && exchByCode(m[2])) { suffix = exchByCode(m[2])[0]; t = m[1]; } // RHM FWB, RGTI NASDAQ.SCM
+    else if ((m = /^(.+?)\.([A-Z]{2,6})$/.exec(t)) && exchByCode(m[2]) && !EXCHANGES.some(([suf]) => suf === "." + m[2])) { suffix = exchByCode(m[2])[0]; t = m[1]; } // RHM.FWB
+    if (suffix === ".HK" && /^\d{1,4}$/.test(t)) t = t.padStart(4, "0");   // Yahoo: 2618.HK, 0005.HK
     if (suffix && !/[.^=]/.test(t)) t += suffix === "=US" ? "" : suffix;
     return t;
   }
@@ -223,6 +232,31 @@
     finally { btn.disabled = false; }
   }
 
+  /** Meerdere aandelen in één keer, bijv. geplakt uit je broker:
+   *  één per regel ("LDO BVME"), of gescheiden door komma's/puntkomma's. */
+  async function addMany(text) {
+    const lines = text.split(/[\n,;]+/).map((l) => l.replace(/\t/g, " ").trim()).filter(Boolean);
+    const wanted = [...new Set(lines.map((l) => parseInput(l, "")).filter(Boolean))];
+    const known = new Set(state.stocks.map((s) => s.ticker));
+    const fresh = wanted.filter((t) => !known.has(t));
+    if (!fresh.length) { msg(wanted.length ? "Die staan allemaal al in je lijst." : "Plak eerst je tickers.", true); return; }
+    if (storage.getSettings().provider === "github" && !sync.enabled()) { msg("Stel eerst de centrale lijst in (of open hem met je wachtwoord).", true); return; }
+    const btn = $("#bulk-btn"); btn.disabled = true; msg(`${fresh.length} aandelen toevoegen…`);
+    try {
+      const now = new Date().toISOString();
+      await commit((list) => {
+        const have = new Set(list.map((x) => x.ticker)), out = [...list];
+        for (const t of fresh) if (!have.has(t)) out.push({ ticker: t, addedAt: now });
+        return out;
+      });
+      for (const t of fresh) if (state.selected.size < MAX) state.selected.add(t);
+      saveUi(); $("#bulk").value = "";
+      msg(`${fresh.length} aandelen toegevoegd${wanted.length > fresh.length ? ` (${wanted.length - fresh.length} stonden er al)` : ""}. GitHub haalt nu de koersen op, dat duurt een tot twee minuten. Wat Yahoo niet kent, zie je daarna in rood.`);
+      renderList(); drawChart(); if (storage.getSettings().provider === "demo") await Beleg.prices.snapshot(state.stocks.map((s) => s.ticker), 0); else waitForPrices();
+    } catch (e) { msg(e.message, true); }
+    finally { btn.disabled = false; }
+  }
+
   async function replaceTicker(oldT, newT) {
     if (state.stocks.some((s) => s.ticker === newT)) { msg(`${newT} staat al in de lijst.`, true); renderList(); return; }
     try {
@@ -368,6 +402,7 @@
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pullCentral(true); });
 
   // ---------- start ----------
+  $("#bulk-btn").onclick = () => addMany($("#bulk").value);
   $("#add-form").onsubmit = (e) => { e.preventDefault(); addStock($("#ticker").value, $("#exchange").value); };
   { const o = document.createElement("option"); o.value = ""; o.textContent = "Beurs: automatisch (hoofdbeurs)"; $("#exchange").appendChild(o); }
   for (const e of EXCHANGES) {
