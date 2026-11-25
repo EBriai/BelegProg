@@ -25,24 +25,37 @@
     pendingDelete: null,
     waiting: false,   // wacht op GitHub Actions
   };
-  // Beurzen: Yahoo-achtervoegsel, afkorting en volledige naam.
+  // Beurzen: Yahoo-achtervoegsel, afkortingen (de eerste wordt getoond) en volledige naam.
   const EXCHANGES = [
-    [".AS", "AMS", "Euronext Amsterdam"], [".BR", "BRU", "Euronext Brussel"], [".PA", "PAR", "Euronext Parijs"],
-    [".LS", "LIS", "Euronext Lissabon"], [".IR", "ISE", "Euronext Dublin"],
-    [".DE", "XETRA / IBIS", "Xetra, Frankfurt (elektronisch)"], [".F", "FRA", "Börse Frankfurt (parket)"],
-    [".BE", "BER", "Börse Berlin"], [".DU", "DUS", "Börse Düsseldorf"], [".HM", "HAM", "Börse Hamburg"],
-    [".MU", "MUN", "Börse München"], [".SG", "STU", "Börse Stuttgart"],
-    [".L", "LSE", "London Stock Exchange"], [".MI", "MIL", "Borsa Italiana, Milaan"], [".MC", "BME", "Bolsa de Madrid"],
-    [".SW", "SIX", "SIX Swiss Exchange, Zürich"], [".VI", "VIE", "Wiener Börse"], [".WA", "WSE", "Warschau"],
-    [".ST", "STO", "Nasdaq Stockholm"], [".CO", "CPH", "Nasdaq Kopenhagen"], [".HE", "HEL", "Nasdaq Helsinki"], [".OL", "OSL", "Oslo Børs"],
-    ["=US", "NYSE / NASDAQ", "Verenigde Staten"], [".TO", "TSX", "Toronto Stock Exchange"],
-    [".T", "TSE", "Tokyo Stock Exchange"], [".HK", "HKEX", "Hong Kong Exchange"], [".AX", "ASX", "Australian Securities Exchange"],
+    [".AS", ["AMS", "EAM", "AEX"], "Euronext Amsterdam"], [".BR", ["BRU", "EBR"], "Euronext Brussel"],
+    [".PA", ["PAR", "EPA"], "Euronext Parijs"], [".LS", ["LIS", "ELI"], "Euronext Lissabon"], [".IR", ["ISE", "EDU"], "Euronext Dublin"],
+    [".DE", ["XETRA", "IBIS", "XETR", "ETR", "GER"], "Xetra (elektronisch handelsplatform van de Deutsche Börse)"],
+    [".F", ["FWB", "FRA", "FSE"], "Frankfurter Wertpapierbörse (parkethandel)"],
+    [".BE", ["BER"], "Börse Berlin"], [".DU", ["DUS"], "Börse Düsseldorf"], [".HM", ["HAM"], "Börse Hamburg"],
+    [".MU", ["MUN"], "Börse München"], [".SG", ["STU"], "Börse Stuttgart"],
+    [".L", ["LSE", "LON"], "London Stock Exchange"], [".MI", ["MIL", "BIT"], "Borsa Italiana, Milaan"], [".MC", ["BME", "MCE"], "Bolsa de Madrid"],
+    [".SW", ["SIX", "SWX", "VTX"], "SIX Swiss Exchange, Zürich"], [".VI", ["VIE", "WBAG"], "Wiener Börse"], [".WA", ["WSE", "GPW"], "Warschau"],
+    [".ST", ["STO", "OMX"], "Nasdaq Stockholm"], [".CO", ["CPH"], "Nasdaq Kopenhagen"], [".HE", ["HEL"], "Nasdaq Helsinki"], [".OL", ["OSL", "OSE"], "Oslo Børs"],
+    ["=US", ["NYSE", "NASDAQ", "US", "NMS", "NYQ"], "Verenigde Staten"], [".TO", ["TSX", "TOR"], "Toronto Stock Exchange"],
+    [".T", ["TSE", "TYO", "JPX"], "Tokyo Stock Exchange"], [".HK", ["HKEX", "HKG"], "Hong Kong Exchange"], [".AX", ["ASX"], "Australian Securities Exchange"],
   ];
+  const exchByCode = (code) => EXCHANGES.find(([, codes]) => codes.includes(code.toUpperCase()));
+  const exchCodes = (e) => (e[0] === "=US" ? "NYSE / NASDAQ" : e[1].slice(0, e[0] === ".DE" ? 2 : 1).join(" / "));
+
+  /** Begrijpt "RHM FWB", "RHM.FWB", "FWB:RHM" en "RHM" + gekozen beurs. */
+  function parseInput(raw, suffix) {
+    let t = raw.trim().toUpperCase().replace(/\s+/g, " ");
+    let m = /^([A-Z]{2,6}):(.+)$/.exec(t) || null;                 // FWB:RHM (zoals op Google)
+    if (m && exchByCode(m[1])) { suffix = exchByCode(m[1])[0]; t = m[2]; }
+    else if ((m = /^(.+?)[ .]([A-Z]{2,6})$/.exec(t)) && exchByCode(m[2])) { suffix = exchByCode(m[2])[0]; t = m[1]; } // RHM FWB / RHM.FWB
+    if (suffix && !/[.^=]/.test(t)) t += suffix === "=US" ? "" : suffix;
+    return t;
+  }
   /** "XETRA / IBIS – Xetra, Frankfurt (elektronisch)" voor RHM.DE; anders wat Yahoo meegeeft. */
   function exchLabel(symbol, yahooName) {
     const m = /\.[A-Z]{1,3}$/.exec(symbol || "");
     const e = m && EXCHANGES.find(([suf]) => suf === m[0]);
-    if (e) return `${e[1]} – ${e[2]}`;
+    if (e) return `${exchCodes(e)} – ${e[2]}`;
     return yahooName || "";
   }
   const item = (t) => Beleg.prices.cached()?.items?.[t];
@@ -192,9 +205,8 @@
   }
 
   async function addStock(raw, suffix) {
-    let ticker = raw.trim().toUpperCase().replace(/\s+/g, " ");
+    const ticker = parseInput(raw, suffix);
     if (!ticker) return;
-    if (suffix && !/[.^=]/.test(ticker)) ticker += suffix === "=US" ? "" : suffix;
     if (state.stocks.some((s) => s.ticker === ticker)) { msg(`${ticker} staat al in de lijst.`, true); return; }
     if (storage.getSettings().provider === "github" && !sync.enabled()) { msg("Stel eerst de centrale lijst in (of open hem met je wachtwoord). Pas dan kan de app koersen ophalen.", true); return; }
     const btn = $("#add-btn"); btn.disabled = true; msg(`${ticker} toevoegen…`);
@@ -357,8 +369,9 @@
 
   // ---------- start ----------
   $("#add-form").onsubmit = (e) => { e.preventDefault(); addStock($("#ticker").value, $("#exchange").value); };
-  for (const [v, code, name] of [["", "Beurs: automatisch (hoofdbeurs)", ""], ...EXCHANGES]) {
-    const o = document.createElement("option"); o.value = v; o.textContent = name ? `${code} – ${name}` : code; $("#exchange").appendChild(o);
+  { const o = document.createElement("option"); o.value = ""; o.textContent = "Beurs: automatisch (hoofdbeurs)"; $("#exchange").appendChild(o); }
+  for (const e of EXCHANGES) {
+    const o = document.createElement("option"); o.value = e[0]; o.textContent = `${exchCodes(e)} – ${e[2]}`; $("#exchange").appendChild(o);
   }
   $("#start").onchange = () => { state.range = "custom"; renderRanges(); drawChart(); };
   darkMq.addEventListener("change", () => { renderList(); drawChart(); });
