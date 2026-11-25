@@ -7,7 +7,7 @@
   };
   const MAX = 20;
   const DASHES = ["solid", "dash", "dot"];
-  const NGROUPS = 4, GSIZE = 5;
+  const NGROUPS = 5, GSIZE = 10;
   const normGroups = (g) => Array.from({ length: NGROUPS }, (_, i) => String(g?.[i] ?? "").trim().slice(0, 24) || `Groep ${i + 1}`);
   const groupOf = (s) => (Number.isInteger(s.group) && s.group >= 0 && s.group < NGROUPS ? s.group : null);
   const RANGES = [["1M", 1], ["6M", 6], ["YTD", "ytd"], ["1J", 12], ["3J", 36], ["5J", 60], ["10J", 120], ["Max", null]];
@@ -198,7 +198,7 @@
           const add = members.map((s) => s.ticker).filter((t) => !state.selected.has(t));
           const room = MAX - state.selected.size;
           add.slice(0, room).forEach((t) => state.selected.add(t));
-          if (add.length > room) msg(`Maximaal ${MAX} aandelen tegelijk in de grafiek. ${add.length - room} van ${name} passen er niet meer bij.`, true);
+          if (add.length > room) msg(`De grafiek toont maximaal ${MAX} aandelen. Niet getoond uit ${name}: ${add.slice(Math.max(room, 0)).join(", ")}. Zet eerst een andere groep of losse aandelen uit.`, true);
         } else members.forEach((s) => state.selected.delete(s.ticker));
         saveUi(); renderList(); drawChart();
       };
@@ -212,13 +212,13 @@
         catch (e) { msg(e.message, true); renderList(); }
       };
       const ul = sec.querySelector(".glist");
-      if (!members.length) ul.innerHTML = '<li class="drop-hint">Sleep hier aandelen naartoe (max. 5)</li>';
+      if (!members.length) ul.innerHTML = `<li class="drop-hint">Sleep hier aandelen naartoe (max. ${GSIZE})</li>`;
       for (const s of members) ul.appendChild(stockLi(s));
       box.appendChild(sec);
     });
   }
 
-  // Verplaats een aandeel naar groep g (0–3) of terug naar de hoofdgroep ("main").
+  // Verplaats een aandeel naar groep g (0–4) of terug naar de hoofdgroep ("main").
   async function moveToGroup(ticker, dest) {
     state.assigning = null;
     const g = dest === "main" ? null : Number(dest);
