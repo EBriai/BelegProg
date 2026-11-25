@@ -5,7 +5,8 @@
     light: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"],
     dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"],
   };
-  const MAX = 8;
+  const MAX = 20;
+  const DASHES = ["solid", "dash", "dot"];
   const RANGES = [["1M", 1], ["6M", 6], ["YTD", "ytd"], ["1J", 12], ["3J", 36], ["5J", 60], ["10J", 120], ["Max", null]];
   const $ = (s) => document.querySelector(s);
   const darkMq = matchMedia("(prefers-color-scheme: dark)");
@@ -23,6 +24,7 @@
     selected: new Set(ui.selected || []),
     range: ui.range && ui.range !== "custom" ? ui.range : "1J",
     pendingDelete: null,
+    highlight: null,
     waiting: false,   // wacht op GitHub Actions
   };
   // Beurzen: Yahoo-achtervoegsel, afkortingen (de eerste wordt getoond) en volledige naam.
@@ -76,7 +78,13 @@
   // kleur volgt het aandeel en blijft gelijk bij (de)selecteren
   const colorOf = (t) => {
     const s = state.stocks.find((x) => x.ticker === t);
-    return PALETTE[isDark() ? "dark" : "light"][(s?.color ?? 0) % MAX];
+    return PALETTE[isDark() ? "dark" : "light"][(s?.color ?? 0) % 8];
+  };
+  // na 8 kleuren volgt dezelfde kleur gestreept, daarna gestippeld: 24 unieke lijnen
+  const dashOf = (t) => DASHES[Math.floor((state.stocks.find((x) => x.ticker === t)?.color ?? 0) / 8) % 3];
+  const swatch = (t, on = true) => {
+    const c = colorOf(t), d = { solid: "", dash: 'stroke-dasharray="5 3"', dot: 'stroke-dasharray="1.5 2.5"' }[dashOf(t)];
+    return `<svg class="swatch" viewBox="0 0 22 10" aria-hidden="true"><line x1="2" y1="5" x2="20" y2="5" stroke="${c}" stroke-width="${on ? 3 : 1.5}" stroke-linecap="round" ${d} opacity="${on ? 1 : .5}"/></svg>`;
   };
   const freeColor = () => {
     const used = new Set(state.stocks.map((s) => s.color));
@@ -150,7 +158,6 @@
     }
     for (const s of [...state.stocks].sort((a, b) => a.ticker.localeCompare(b.ticker))) {
       const on = state.selected.has(s.ticker);
-      const c = colorOf(s.ticker);
       const li = document.createElement("li");
       const confirming = state.pendingDelete === s.ticker;
       const it = item(s.ticker);
@@ -164,7 +171,7 @@
         <div class="stock-main">
         <label class="stock">
           <input type="checkbox" ${on ? "checked" : ""}>
-          <span class="swatch" style="background:${on ? c : "transparent"};border-color:${c}"></span>
+          ${swatch(s.ticker, on)}
           <span class="name"><strong>${esc(s.ticker)}</strong><small class="${subClass}">${esc(sub)}</small></span>
         </label>
         ${confirming
@@ -354,7 +361,7 @@
   async function drawChart() {
     const seq = ++drawSeq;
     const tickers = state.stocks.map((s) => s.ticker).filter((t) => state.selected.has(t));
-    $("#summary tbody").innerHTML = ""; $("#warnings").textContent = ""; $("#base-day").textContent = "";
+    $("#summary tbody").innerHTML = ""; $("#hl-hint").hidden = true; $("#warnings").textContent = ""; $("#base-day").textContent = "";
     if (!tickers.length) { Plotly.purge("chart"); empty("Vink één of meer aandelen aan om ze te vergelijken."); return; }
     empty(""); $("#loading").hidden = false;
     const series = {}, warnings = [];
@@ -376,10 +383,15 @@
     if (!data.dates.length) { Plotly.purge("chart"); empty("Geen koersen in deze periode."); return; }
     $("#base-day").textContent = ` (${new Date(data.start).toLocaleDateString("nl-NL")})`;
 
-    const shown = tickers.filter((t) => data.series[t]);
+    // beste rendement bovenaan, zodat legenda, tooltip en tabel dezelfde volgorde hebben
+    const shown = tickers.filter((t) => data.series[t]).sort((a, b) => data.series[b].at(-1) - data.series[a].at(-1));
+    if (state.highlight && !shown.includes(state.highlight)) state.highlight = null;
+    const hl = state.highlight;
+    const many = shown.length > 8;
     const traces = shown.map((t) => ({
       x: data.dates, y: data.series[t], name: t, type: "scatter", mode: "lines",
-      line: { color: colorOf(t), width: 2 }, customdata: data.closes[t],
+      opacity: hl && hl !== t ? 0.18 : 1,
+      line: { color: colorOf(t), dash: dashOf(t), width: hl === t ? 3.5 : many ? 1.6 : 2 }, customdata: data.closes[t],
       hovertemplate: `<b>${esc(t)}</b> %{y:.1f}  (koers %{customdata:.2f})<extra></extra>`,
     }));
     const text = css("--muted"), grid = css("--grid");
@@ -388,22 +400,45 @@
       paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
       font: { family: css("--font-body"), color: text, size: 12 },
       margin: { l: 40, r: 8, t: 8, b: 30 }, hovermode: "x unified", dragmode: narrow ? false : "zoom",
-      hoverlabel: { bgcolor: css("--surface"), bordercolor: css("--line"), font: { color: css("--ink") } },
-      showlegend: true, legend: { orientation: "h", y: -0.14, x: 0 },
+      hoverlabel: { bgcolor: css("--surface"), bordercolor: css("--line"), font: { color: css("--ink"), size: many ? 11 : 12 } },
+      // op de telefoon is de tabel onder de grafiek de legenda
+      showlegend: !narrow, legend: { orientation: "h", y: -0.14, x: 0, itemclick: false, itemdoubleclick: false },
       xaxis: { gridcolor: grid, hoverformat: "%d-%m-%Y", showspikes: true, spikemode: "across", spikethickness: 1, spikecolor: text, spikedash: "solid", fixedrange: narrow },
       yaxis: { gridcolor: grid, zeroline: false, fixedrange: narrow },
       shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 100, y1: 100, line: { color: text, width: 1, dash: "dot" } }],
     }, { responsive: true, displaylogo: false, displayModeBar: !narrow });
+    const chartEl = $("#chart");
+    chartEl.removeAllListeners?.("plotly_legendclick");
+    chartEl.on?.("plotly_legendclick", (ev) => { toggleHighlight(shown[ev.curveNumber]); return false; });
 
     const tbody = $("#summary tbody");
     for (const t of shown) {
       const c = data.closes[t], ret = data.series[t].at(-1) - 100;
       const cur = item(t)?.currency || "";
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td><span class="swatch" style="background:${colorOf(t)};border-color:${colorOf(t)}"></span>${esc(t)}</td>
+      tr.dataset.t = t; tr.tabIndex = 0; tr.title = "Tik om deze lijn uit te lichten";
+      if (hl === t) tr.classList.add("hl"); else if (hl) tr.classList.add("dim");
+      tr.onclick = () => toggleHighlight(t);
+      tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleHighlight(t); } };
+      tr.innerHTML = `<td>${swatch(t)}${esc(t)}</td>
         <td>${fmt(c[0])}</td><td>${fmt(c.at(-1))} <span class="cur">${esc(cur)}</span></td>
         <td class="${ret >= 0 ? "up" : "down"}">${ret >= 0 ? "+" : "−"}${fmt(Math.abs(ret), 1)}%</td>`;
       tbody.appendChild(tr);
+    }
+    $("#hl-hint").hidden = shown.length < 3;
+  }
+
+  // alleen de stijl aanpassen: snel, en zonder koersen opnieuw op te halen
+  function toggleHighlight(t) {
+    const hl = state.highlight = state.highlight === t ? null : t;
+    const el = $("#chart"), shown = (el.data || []).map((tr) => tr.name), many = shown.length > 8;
+    if (shown.length) Plotly.restyle(el, {
+      opacity: shown.map((x) => (hl && hl !== x ? 0.18 : 1)),
+      "line.width": shown.map((x) => (hl === x ? 3.5 : many ? 1.6 : 2)),
+    });
+    for (const tr of $("#summary tbody").children) {
+      tr.classList.toggle("hl", hl === tr.dataset.t);
+      tr.classList.toggle("dim", !!hl && hl !== tr.dataset.t);
     }
   }
 
