@@ -2,7 +2,7 @@
  "versie": 1,
  "uitleg": "Versleutelde aandelenlijst van de Koersvergelijker (AES-256-GCM, PBKDF2).",
  "iter": 310000,
- "salt": "pr1QJheYkLOD2mFGg7iT0g==",
- "iv": "B/FfKrnyHLJgWXOc",
- "data": "lLbE5Z/QsDhmPQoflrcyDOJ2vnjn9n2/pqsbMqhA7jAboOu19Lu0XS2Oyb0f/F9EAGYjgQgJsjaz58/M/KgCIt5/te7Aviw/pa0Ajo5pS1HBSI49BGP7vUuEodtBVKG7avnmTrf4g6JaNiQBKYVKKmR4SBZVoqwdzWQNBDWI0SYkOlNEUaxpxpgw6CO5LwC2Lv8e6MutzUH/yua+jlKCOSNWEngOUB8CtfFBZklA5bfDqreyKmzHnwDAk+FAPN4="
+ "salt": "7ireaB9qwrrgpGY0CgxN3Q==",
+ "iv": "k74v59232bPjdgHX",
+ "data": "ryH8B8hZYILDfT6AD3wFZq8fRnn1a5zXzfYK+dGDmqK+DJFfQx15yheJOuOvjxKdPnwADMO0PzrQdEjNyCvsSVd5ULW66Rm0d+2eqOnPcUJjH/+yppZqoGv1HhnuFyZ+rbFhYrfGLuvcf9l21xUDPa52g4JS/JJBQP4/0loR+BWoXHt4KLtIK3FcrNSF+eMc498jdq73usGQ9b9MtLAvqf/gMUgp4tQ9yMbTKStUB8CgZxcBegBC88ZioQwA3I8dS/qtUEsAaDQ7X2j4V/AM7doq0pRf/IAvZAkqEegHOp1uxudVYzfgEYYYYjB5pab8kyEWkUG1yddPLtC2I+94F7E="
 }
