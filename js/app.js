@@ -210,6 +210,7 @@
         renderList(); drawChart();
       }
       if (state.stocks.some(isPending)) msg("De koersen zijn er na 5 minuten nog niet. GitHub is mogelijk traag; de app probeert het opnieuw als je hem straks opent.", true);
+      else await dropFailedImports();
     } finally { state.waiting = false; }
   }
 
@@ -234,6 +235,20 @@
 
   /** Meerdere aandelen in één keer, bijv. geplakt uit je broker:
    *  één per regel ("LDO BVME"), of gescheiden door komma's/puntkomma's. */
+  /** Na "meerdere tegelijk": wat Yahoo niet kent weer weghalen en alleen dat melden. */
+  async function dropFailedImports() {
+    const failed = state.stocks.filter((s) => s.batch && item(s.ticker)?.error).map((s) => s.ticker);
+    const ok = state.stocks.filter((s) => s.batch && item(s.ticker) && !item(s.ticker).error).map((s) => s.ticker);
+    if (!failed.length && !ok.length) return;
+    try {
+      await commit((list) => list.filter((x) => !failed.includes(x.ticker)).map(({ batch, ...x }) => x));
+      failed.forEach((t) => state.selected.delete(t)); saveUi();
+      renderList(); drawChart();
+      if (failed.length) msg(`Niet toegevoegd, Yahoo kent ${failed.length === 1 ? "deze" : "deze"} niet: ${failed.join(", ")}. Controleer de schrijfwijze of voeg ze los toe.`, true);
+      else msg(`Klaar: alle ${ok.length} aandelen zijn toegevoegd.`);
+    } catch (e) { msg(e.message, true); }
+  }
+
   async function addMany(text) {
     const lines = text.split(/[\n,;]+/).map((l) => l.replace(/\t/g, " ").trim()).filter(Boolean);
     const wanted = [...new Set(lines.map((l) => parseInput(l, "")).filter(Boolean))];
@@ -246,15 +261,61 @@
       const now = new Date().toISOString();
       await commit((list) => {
         const have = new Set(list.map((x) => x.ticker)), out = [...list];
-        for (const t of fresh) if (!have.has(t)) out.push({ ticker: t, addedAt: now });
+        for (const t of fresh) if (!have.has(t)) out.push({ ticker: t, addedAt: now, batch: now });
         return out;
       });
       for (const t of fresh) if (state.selected.size < MAX) state.selected.add(t);
       saveUi(); $("#bulk").value = "";
-      msg(`${fresh.length} aandelen toegevoegd${wanted.length > fresh.length ? ` (${wanted.length - fresh.length} stonden er al)` : ""}. GitHub haalt nu de koersen op, dat duurt een tot twee minuten. Wat Yahoo niet kent, zie je daarna in rood.`);
+      msg(`${fresh.length} aandelen toegevoegd${wanted.length > fresh.length ? ` (${wanted.length - fresh.length} stonden er al)` : ""}. GitHub haalt nu de koersen op, dat duurt een tot twee minuten. Wat Yahoo niet kent, haal ik daarna weer weg en meld ik hier.`);
       renderList(); drawChart(); if (storage.getSettings().provider === "demo") await Beleg.prices.snapshot(state.stocks.map((s) => s.ticker), 0); else waitForPrices();
     } catch (e) { msg(e.message, true); }
     finally { btn.disabled = false; }
+  }
+
+  // ---------- schermafbeelding van je broker ----------
+  /** Herkende regels -> "TICKER BEURS". Een slecht gelezen beurscode wordt
+   *  gekoppeld aan de dichtstbijzijnde bekende code (bijv. AE8 -> AEB). */
+  const lev = (a, b) => {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  };
+  const ALL_CODES = [...EXCHANGES.flatMap(([, c]) => c), "NASDAQ.NMS", "NASDAQ.SCM", "NASDAQ.NGS", "NYSE.ARCA"];
+  function matchCode(raw) {
+    const x = raw.toUpperCase().replace(/[^A-Z.]/g, "");
+    if (!x) return null;
+    if (exchByCode(x)) return x;
+    let best = null, bestD = 99;
+    for (const c of ALL_CODES) { const dd = lev(x, c); if (dd < bestD) { best = c; bestD = dd; } }
+    return bestD <= Math.max(1, Math.floor(best.length / 3)) ? best : null;
+  }
+  function parseOcrRows(rows) {
+    const out = [];
+    const withCode = rows.filter((r) => r.code && matchCode(r.code)).length;
+    for (const r of rows) {
+      const t = r.ticker.toUpperCase().replace(/[^A-Z0-9.]/g, "");
+      if (!/^[A-Z0-9][A-Z0-9.]{0,7}$/.test(t)) continue;
+      const code = r.code ? matchCode(r.code) || matchCode(r.raw || "") : null;
+      if (code) out.push(`${t} ${code}`);
+      // regels zonder beurscode alleen als de hele afbeelding geen beurscodes heeft (geen kopjes en saldi)
+      else if (withCode < 2 && t.length >= 2 && t.length <= 6 && !["INSTRUMENT", "SYMBOL", "TICKER"].includes(t)) out.push(t);
+    }
+    return [...new Set(out)];
+  }
+
+  async function readScreenshot(file) {
+    if (!file) return;
+    $("#bulk-box").open = true;
+    const status = (t, err) => msg(t, err);
+    status("Afbeelding lezen… (de eerste keer duurt dit wat langer)");
+    try {
+      const rows = await Beleg.ocr.read(file, (p) => status(`Afbeelding lezen… ${p}%`));
+      const found = parseOcrRows(rows);
+      if (!found.length) { status("Ik kon geen tickers in deze afbeelding vinden. Typ ze liever in.", true); return; }
+      await addMany(found.join("\n"));
+    } catch (e) { status(e.message, true); }
   }
 
   async function replaceTicker(oldT, newT) {
@@ -403,6 +464,20 @@
 
   // ---------- start ----------
   $("#bulk-btn").onclick = () => addMany($("#bulk").value);
+  $("#shot").onchange = (e) => { readScreenshot(e.target.files[0]); e.target.value = ""; };
+  // slepen naar de pagina en plakken (Ctrl+V) van een afbeelding
+  const firstImage = (list) => [...(list || [])].find((f) => f.type?.startsWith("image/"));
+  addEventListener("dragover", (e) => { if ([...e.dataTransfer.types].includes("Files")) { e.preventDefault(); document.body.classList.add("dragging"); } });
+  addEventListener("dragleave", (e) => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
+  addEventListener("drop", (e) => {
+    document.body.classList.remove("dragging");
+    const f = firstImage(e.dataTransfer?.files); if (!f) return;
+    e.preventDefault(); readScreenshot(f);
+  });
+  addEventListener("paste", (e) => {
+    const f = firstImage([...(e.clipboardData?.items || [])].map((i) => i.getAsFile()).filter(Boolean));
+    if (f) { e.preventDefault(); readScreenshot(f); }
+  });
   $("#add-form").onsubmit = (e) => { e.preventDefault(); addStock($("#ticker").value, $("#exchange").value); };
   { const o = document.createElement("option"); o.value = ""; o.textContent = "Beurs: automatisch (hoofdbeurs)"; $("#exchange").appendChild(o); }
   for (const e of EXCHANGES) {

@@ -96,8 +96,15 @@ def resolve(query):
         base = query.split(".")[0]
         data["candidates"] = [c for c in data["candidates"] if c["symbol"].split(".")[0] == base]
         return data
-    cands = search(query)
     base = query.split(".")[0]
+    # schermafbeeldingen: O en 0 lijken op elkaar (RQO.SG is eigenlijk RQ0.SG)
+    if "O" in base:
+        alt = base.replace("O", "0") + query[len(base):]
+        data = fetch(alt)
+        if data:
+            data["candidates"] = []
+            return data
+    cands = search(query)
     if not cands and "." in query:          # bijv. BNKR.TO bestaat niet, maar BNKR.V wel
         cands = search(base)
     # zelfde basissymbool eerst (RHM -> RHM.DE), dan de rest

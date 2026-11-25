@@ -40,9 +40,14 @@
       <select id="exchange" aria-label="Beurs"></select>
     </form>
     <p class="hint">Typ de ticker zoals je hem kent (RHM, ASML) of een naam (Rheinmetall). De app kiest de hoofdbeurs. Een beurs kun je kiezen of erbij typen: <code>RHM FWB</code>, <code>RHM XETRA</code>, <code>ASML AMS</code>.</p>
-    <details class="bulk">
+    <details class="bulk" id="bulk-box">
       <summary>Meerdere tegelijk toevoegen</summary>
-      <label for="bulk" class="hint">Plak je lijst, één aandeel per regel, bijvoorbeeld uit je broker: <code>LDO BVME</code>, <code>RGTI NASDAQ.SCM</code>, <code>2618 SEHK</code>.</label>
+      <label class="drop" for="shot">
+        <strong>Schermafbeelding van je broker</strong>
+        <span>Sleep hem hierheen, plak hem (Ctrl+V), of tik om er een te kiezen</span>
+        <input id="shot" type="file" accept="image/*">
+      </label>
+      <label for="bulk" class="hint">Of typ/plak je lijst, één aandeel per regel: <code>LDO BVME</code>, <code>RGTI NASDAQ.SCM</code>, <code>2618 SEHK</code>.</label>
       <textarea id="bulk" rows="6" spellcheck="false"></textarea>
       <button id="bulk-btn" type="button">Alles toevoegen</button>
     </details>
@@ -105,6 +110,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
 <script src="js/vendor/blake2b.js"></script>
 <script src="js/sealedbox.js"></script>
+<script src="js/ocr.js"></script>
 <script src="js/prices.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/app.js"></script>

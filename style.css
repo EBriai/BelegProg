@@ -118,3 +118,8 @@ select.alt { font-size: 13px; min-height: 34px; padding: 4px 8px; margin-left: 2
 .bulk summary { cursor: pointer; color: var(--accent); font-size: 14px; }
 .bulk[open] { display: flex; }
 #bulk { font: 13px/1.4 var(--font-num); text-transform: uppercase; }
+.drop { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; padding: 14px 10px; border: 1.5px dashed var(--line); border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--muted); }
+.drop strong { color: var(--ink); font-size: 14px; font-weight: 500; }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop:hover, .drop:focus-within, body.dragging .drop { border-color: var(--accent); background: var(--bg); }
+body.dragging .panel.list-panel { outline: 2px dashed var(--accent); outline-offset: 4px; }
