@@ -27,19 +27,25 @@ Lokaal proberen kan ook: `python -m http.server` in deze map en open http://loca
 Koersen worden in de browser bewaard: de volledige historie één keer, daarna hooguit één
 keer per dag de laatste dagen erbij.
 
-## Gegevens: één centrale lijst
+## Gegevens: één centrale, privé lijst
 
-Je aandelenlijst kan op één plek staan: een geheime (niet openbare) gist in je eigen
-GitHub-account. Pc en telefoon lezen en schrijven dezelfde lijst.
+De app zelf (deze repository) is openbaar, zodat GitHub Pages gratis werkt. Je gegevens
+staan apart in een **privé** repository die alleen jij kunt zien.
 
-1. Maak een token: https://github.com/settings/tokens/new?scopes=gist&description=Koersvergelijker
-   (vink alleen **gist** aan en kies een vervaldatum).
-2. In de app: Instellingen → plak het token → **Koppelen**. Doe dit op elk apparaat
-   (hetzelfde token mag).
+Eenmalig:
+1. Maak op GitHub een nieuwe **privé** repository, bijv. `BelegData` (leeg laten mag).
+2. Maak een token: https://github.com/settings/personal-access-tokens/new
+   - Repository access: *Only select repositories* → `BelegData`
+   - Repository permissions → *Contents*: **Read and write**
+   - Kies een vervaldatum (bijv. 1 jaar) en kopieer het token.
 
-Het token blijft alleen in de browser van dat apparaat staan en komt nooit in de repository.
-Het geeft alleen toegang tot je gists, niet tot je repositories. Zonder koppeling bewaart de
-app de lijst alleen op het apparaat zelf. Koersen worden per apparaat gecachet.
+Op elk apparaat (pc en telefoon) één keer: Instellingen → repository `EBriai/BelegData`
+en het token invullen → **Koppelen**. De app weigert een openbare repository.
+
+De lijst komt in `data/stocks.json` in die privé-repository. Het token blijft alleen in de
+browser van het apparaat en mag niets anders dan die ene repository lezen en schrijven.
+Zonder koppeling bewaart de app de lijst alleen op het apparaat zelf. Koersen worden per
+apparaat gecachet en zijn sowieso openbare informatie.
 
 ## Opbouw (voor uitbreidingen)
 
@@ -47,7 +53,7 @@ app de lijst alleen op het apparaat zelf. Koersen worden per apparaat gecachet.
 index.html          pagina
 style.css           opmaak (kleuren als variabelen, licht en donker)
 js/storage.js       opslag in de browser
-js/sync.js          centrale lijst via een GitHub-gist
+js/sync.js          centrale lijst in een privé GitHub-repository
 js/providers.js     koersbronnen; nieuwe bron = object met lookup() en history()
 js/prices.js        koerscache en dagelijkse update
 js/analysis.js      rekenwerk (uitlijnen, normaliseren), puur en testbaar

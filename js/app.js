@@ -246,18 +246,23 @@
     } catch (e) { msg(`Importeren mislukt: ${e.message}`, true); }
   };
 
-  $("#gh-token").value = sync.getToken() ? "••••••••" : "";
+  $("#gh-token").value = sync.hasToken() ? "••••••••" : "";
+  $("#gh-repo").value = sync.getRepo();
   $("#gh-connect").onclick = async () => {
-    const t = $("#gh-token").value.trim();
-    if (!t || t.startsWith("•")) { msg("Plak eerst je GitHub-token in het veld.", true); return; }
-    sync.setToken(t); $("#gh-token").value = "••••••••";
-    msg("Koppelen met GitHub…");
+    const t = $("#gh-token").value.trim(), r = $("#gh-repo").value.trim();
+    if (!/^[\w.-]+\/[\w.-]+$/.test(r.replace(/^https:\/\/github\.com\//, "").replace(/\/$/, ""))) { msg("Vul de repository in als naam/repository, bijv. EBriai/BelegData.", true); return; }
+    if (!t) { msg("Plak eerst je GitHub-token in het veld.", true); return; }
+    sync.configure(t.startsWith("•") ? null : t, r);
+    $("#gh-token").value = "••••••••";
+    msg("Koppelen met GitHub…"); setSync("Ophalen…");
+    try { await sync.checkPrivate(); }
+    catch (e) { sync.configure("", ""); $("#gh-token").value = ""; setSync("Alleen op dit apparaat"); msg(e.message, true); return; }
     await pullCentral();
-    if (sync.enabled() && $("#sync-status").textContent === "Gesynchroniseerd") msg(`Gekoppeld. Je lijst staat nu centraal (${state.stocks.length} aandelen).`);
+    if ($("#sync-status").textContent === "Gesynchroniseerd") msg(`Gekoppeld. Je lijst staat nu privé in ${sync.getRepo()} (${state.stocks.length} aandelen).`);
     renderList(); drawChart();
   };
   $("#gh-disconnect").onclick = () => {
-    sync.setToken(""); $("#gh-token").value = "";
+    sync.configure("", ""); $("#gh-token").value = "";
     setSync("Alleen op dit apparaat"); msg("Ontkoppeld. Je lijst blijft op dit apparaat staan; de centrale lijst in GitHub blijft bestaan.");
   };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pullCentral(true); });

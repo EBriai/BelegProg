@@ -43,9 +43,12 @@
         <label for="twelve-key">Twelve Data API-sleutel (gratis op twelvedata.com)</label>
         <input id="twelve-key" autocomplete="off" spellcheck="false">
       </div>
-      <label for="gh-token">Centrale lijst via GitHub (token met alleen het recht "gist")</label>
-      <p class="hint">Eén keer per apparaat. <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=Koersvergelijker" target="_blank" rel="noopener">Maak hier een token aan</a> (vink alleen "gist" aan, kies een vervaldatum) en plak hem hieronder. Hetzelfde token mag op pc en telefoon.</p>
-      <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+      <label for="gh-repo">Centrale, privé lijst in GitHub</label>
+      <p class="hint">Eén keer per apparaat. Zie de uitleg in de README voor het aanmaken van de privé-repository en het token.</p>
+      <input id="gh-repo" autocomplete="off" spellcheck="false" placeholder="EBriai/BelegData">
+      <label for="gh-token">Token (fine-grained, alleen deze repository)</label>
+      <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+      <p class="hint"><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Token aanmaken</a>: kies bij Repository access "Only select repositories" en je data-repository, en zet bij Repository permissions → Contents op "Read and write".</p>
       <div class="row"><button id="gh-connect" type="button">Koppelen</button><button id="gh-disconnect" type="button">Ontkoppelen</button></div>
       <label for="transfer">Lijst overzetten naar ander apparaat</label>
       <textarea id="transfer" rows="3" placeholder="Druk op Exporteren, of plak hier een export en druk op Importeren"></textarea>
