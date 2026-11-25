@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--HEAD-START-->
+<title>Koersvergelijker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#f4f5f2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<!--HEAD-END-->
+</head>
+<body>
+<!--BODY-START-->
+<header class="top">
+  <div class="wrap top-inner">
+    <h1>Koersvergelijker</h1>
+    <span class="tag" id="mode-tag"></span>
+  </div>
+</header>
+<div class="wrap" id="banner-slot"></div>
+<main class="wrap grid">
+  <section class="panel list-panel" aria-labelledby="h-stocks">
+    <h2 id="h-stocks">Mijn aandelen</h2>
+    <form id="add-form">
+      <input id="ticker" placeholder="Ticker, bijv. ASML.AS" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+      <button type="submit" id="add-btn">Toevoegen</button>
+    </form>
+    <p class="hint">Yahoo-tickers: <code>ASML.AS</code> Amsterdam · <code>AAPL</code> VS · <code>SAP.DE</code> Xetra · <code>^AEX</code> index</p>
+    <p id="msg" role="status" aria-live="polite"></p>
+    <ul id="stocks"></ul>
+    <details class="settings">
+      <summary>Instellingen en overzetten</summary>
+      <label for="provider">Koersbron</label>
+      <select id="provider"></select>
+      <div id="twelve-row" hidden>
+        <label for="twelve-key">Twelve Data API-sleutel (gratis op twelvedata.com)</label>
+        <input id="twelve-key" autocomplete="off" spellcheck="false">
+      </div>
+      <label for="transfer">Lijst overzetten naar ander apparaat</label>
+      <textarea id="transfer" rows="3" placeholder="Druk op Exporteren, of plak hier een export en druk op Importeren"></textarea>
+      <div class="row"><button id="export" type="button">Exporteren</button><button id="import" type="button">Importeren</button></div>
+    </details>
+  </section>
+  <section class="panel chart-panel" aria-labelledby="h-chart">
+    <div class="chart-head">
+      <h2 id="h-chart">Vergelijking, start = 100</h2>
+      <div class="controls">
+        <div id="ranges" class="seg" role="group" aria-label="Periode"></div>
+        <label class="from">Vanaf <input type="date" id="start"></label>
+      </div>
+    </div>
+    <p class="sub">Alle koersen staan op 100 op de eerste dag waarop elk gekozen aandeel een koers heeft<span id="base-day"></span>. 130 betekent +30%.</p>
+    <p id="loading" class="hint" hidden>Koersen laden…</p>
+    <p id="empty" class="empty" hidden></p>
+    <div id="chart"></div>
+    <p id="warnings" class="warn"></p>
+    <div class="table-wrap">
+      <table id="summary">
+        <thead><tr><th>Aandeel</th><th>Begin</th><th>Laatst</th><th>Rendement</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<!--SCRIPTS-->
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-basic-dist-min@2.35.2/plotly-basic.min.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/providers.js"></script>
+<script src="js/prices.js"></script>
+<script src="js/app.js"></script>
+<!--BODY-END-->
+</body>
+</html>
