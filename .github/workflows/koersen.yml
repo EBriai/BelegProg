@@ -3,7 +3,7 @@
 name: Koersen ophalen
 on:
   push:
-    branches: [main]
+    branches: [data]          # de app zet de tickerlijst op branch "data"
     paths: [data/tickers.enc]
   schedule:
     - cron: "45 16 * * 1-5"   # na sluiting Europese beurzen
@@ -20,6 +20,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main               # script altijd van main
+      - name: Tickerlijst van branch data
+        run: |
+          git fetch -q --depth 1 origin data
+          git checkout origin/data -- data/tickers.enc
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
