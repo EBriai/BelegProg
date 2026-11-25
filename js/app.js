@@ -553,7 +553,8 @@
       if (hl === t) tr.classList.add("hl"); else if (hl) tr.classList.add("dim");
       tr.onclick = () => toggleHighlight(t);
       tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleHighlight(t); } };
-      tr.innerHTML = `<td>${swatch(t)}${esc(t)}</td>
+      const nm = item(t)?.name || "";
+      tr.innerHTML = `<td>${swatch(t)}${esc(t)}<small class="nm2">${esc(nm)}</small></td><td class="nm" title="${esc(nm)}">${esc(nm)}</td>
         <td>${fmt(c[0])}</td><td>${fmt(c.at(-1))} <span class="cur">${esc(cur)}</span></td>
         <td class="${ret >= 0 ? "up" : "down"}">${ret >= 0 ? "+" : "−"}${fmt(Math.abs(ret), 1)}%</td>`;
       tbody.appendChild(tr);

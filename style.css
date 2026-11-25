@@ -157,3 +157,13 @@ li.dragging { opacity: .35; }
 .assign { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: 32px; font-size: 13px; color: var(--muted); }
 .assign button { font-size: 13px; min-height: 34px; padding: 4px 10px; }
 .assign button small { color: var(--faint); font-family: var(--font-num); }
+
+/* bedrijfsnaam in de tabel: links uitgelijnd, lange namen afgekapt */
+th.nm, td.nm { text-align: left; font-family: var(--font-body); max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+td.nm { color: var(--muted); }
+.nm2 { display: none; }
+/* telefoon: naam onder de ticker, zodat het rendement in beeld blijft */
+@media (max-width: 480px) {
+  th.nm, td.nm { display: none; }
+  .nm2 { display: block; margin-left: 27px; font: 11px var(--font-body); color: var(--muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
