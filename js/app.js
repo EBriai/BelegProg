@@ -2,11 +2,13 @@
 (() => {
   const { storage, prices, analysis, providers, sync } = Beleg;
   const PALETTE = {
-    light: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"],
-    dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"],
+    // 20 kleuren, alleen doorgetrokken lijnen; de eerste 8 zijn het oude palet
+    light: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948",
+      "#0097b2", "#8c564b", "#8a8a00", "#c2185b", "#1f3f8f", "#6f6f6f", "#9c4f9a", "#00695c", "#c08a3e", "#7cb518", "#8b1e3f", "#5aa9e6"],
+    dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767",
+      "#29b6d6", "#b07a6a", "#b5b53a", "#e0569a", "#6f8fe0", "#a0a0a0", "#c07bbd", "#26a69a", "#d8a560", "#9ccc3d", "#c2577a", "#7fc1f0"],
   };
   const MAX = 20;
-  const DASHES = ["solid", "dash", "dot"];
   const NGROUPS = 5, GSIZE = 10;
   const normGroups = (g) => Array.from({ length: NGROUPS }, (_, i) => String(g?.[i] ?? "").trim().slice(0, 24) || `Groep ${i + 1}`);
   const groupOf = (s) => (Number.isInteger(s.group) && s.group >= 0 && s.group < NGROUPS ? s.group : null);
@@ -81,15 +83,22 @@
   };
   const saveUi = () => storage.saveUi({ selected: [...state.selected], range: state.range });
   // kleur volgt het aandeel en blijft gelijk bij (de)selecteren
-  const colorOf = (t) => {
-    const s = state.stocks.find((x) => x.ticker === t);
-    return PALETTE[isDark() ? "dark" : "light"][(s?.color ?? 0) % 8];
+  // Zichtbare aandelen krijgen altijd verschillende kleuren: eigen kleur als die
+  // vrij is, anders de eerstvolgende vrije (bij meer dan 20 aandelen in de lijst).
+  const slotOf = (t) => {
+    const N = PALETTE.light.length, taken = new Map();
+    const shown = state.stocks.filter((x) => state.selected.has(x.ticker)).sort((a, b) => (a.color ?? 0) - (b.color ?? 0));
+    for (const x of shown) {
+      let k = (x.color ?? 0) % N;
+      for (let i = 0; i < N && [...taken.values()].includes(k); i++) k = (k + 1) % N;
+      taken.set(x.ticker, k);
+    }
+    return taken.get(t) ?? ((state.stocks.find((x) => x.ticker === t)?.color ?? 0) % N);
   };
-  // na 8 kleuren volgt dezelfde kleur gestreept, daarna gestippeld: 24 unieke lijnen
-  const dashOf = (t) => DASHES[Math.floor((state.stocks.find((x) => x.ticker === t)?.color ?? 0) / 8) % 3];
+  const colorOf = (t) => PALETTE[isDark() ? "dark" : "light"][slotOf(t)];
   const swatch = (t, on = true) => {
-    const c = colorOf(t), d = { solid: "", dash: 'stroke-dasharray="5 3"', dot: 'stroke-dasharray="1.5 2.5"' }[dashOf(t)];
-    return `<svg class="swatch" viewBox="0 0 22 10" aria-hidden="true"><line x1="2" y1="5" x2="20" y2="5" stroke="${c}" stroke-width="${on ? 3 : 1.5}" stroke-linecap="round" ${d} opacity="${on ? 1 : .5}"/></svg>`;
+    const c = colorOf(t);
+    return `<svg class="swatch" viewBox="0 0 22 10" aria-hidden="true"><line x1="2" y1="5" x2="20" y2="5" stroke="${c}" stroke-width="${on ? 3 : 1.5}" stroke-linecap="round" opacity="${on ? 1 : .5}"/></svg>`;
   };
   const freeColor = () => {
     const used = new Set(state.stocks.map((s) => s.color));
@@ -531,7 +540,7 @@
     const traces = shown.map((t) => ({
       x: data.dates, y: data.series[t], name: t, type: "scatter", mode: "lines",
       opacity: hl && hl !== t ? 0.18 : 1,
-      line: { color: colorOf(t), dash: dashOf(t), width: hl === t ? 3.5 : many ? 1.6 : 2 }, customdata: data.closes[t],
+      line: { color: colorOf(t), width: hl === t ? 3.5 : many ? 1.6 : 2 }, customdata: data.closes[t],
       hovertemplate: `<b>${esc(t)}</b> %{y:.1f}  (koers %{customdata:.2f})<extra></extra>`,
     }));
     const text = css("--muted"), grid = css("--grid");
