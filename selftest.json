@@ -1,0 +1,107 @@
+{
+ "generated": "2026-11-25T15:28:56+00:00",
+ "yfinance": "1.8.0",
+ "items": {
+  "RHM.DE": {
+   "symbool": "RHM.DE",
+   "n": 6875,
+   "eerste": "2000-01-03",
+   "laatste": "2026-11-25",
+   "slot": 741.9,
+   "naam": "Rheinmetall AG",
+   "valuta": "EUR",
+   "beurs": "XETRA",
+   "alternatieven": []
+  },
+  "ASML.AS": {
+   "symbool": "ASML.AS",
+   "n": 6917,
+   "eerste": "2000-01-03",
+   "laatste": "2026-11-25",
+   "slot": 1145.8,
+   "naam": "ASML Holding N.V.",
+   "valuta": "EUR",
+   "beurs": "Amsterdam",
+   "alternatieven": []
+  },
+  "AAPL": {
+   "symbool": "AAPL",
+   "n": 6766,
+   "eerste": "2000-01-03",
+   "laatste": "2026-11-25",
+   "slot": 345.69,
+   "naam": "Apple Inc.",
+   "valuta": "USD",
+   "beurs": "NasdaqGS",
+   "alternatieven": [
+    "AAPL NASDAQ",
+    "AAPL.TO Toronto"
+   ]
+  },
+  "^AEX": {
+   "symbool": "^AEX",
+   "n": 6879,
+   "eerste": "2000-01-03",
+   "laatste": "2026-11-25",
+   "slot": 1070.39,
+   "naam": "AEX-Index",
+   "valuta": "EUR",
+   "beurs": "Amsterdam",
+   "alternatieven": []
+  },
+  "RHM": {
+   "symbool": "RHM.DE",
+   "n": 6875,
+   "eerste": "2000-01-03",
+   "laatste": "2026-11-25",
+   "slot": 741.9,
+   "naam": "Rheinmetall AG",
+   "valuta": "EUR",
+   "beurs": "XETRA",
+   "alternatieven": [
+    "RHM.DE XETRA",
+    "RHM.F Frankfurt",
+    "RHM.SG Stuttgart",
+    "RHM.HM Hamburg",
+    "RHMB.F Frankfurt"
+   ]
+  },
+  "Rheinmetall": {
+   "symbool": "RHM.DE",
+   "n": 6875,
+   "eerste": "2000-01-03",
+   "laatste": "2026-11-25",
+   "slot": 741.9,
+   "naam": "Rheinmetall AG",
+   "valuta": "EUR",
+   "beurs": "XETRA",
+   "alternatieven": [
+    "RHM.DE XETRA",
+    "RNMBY OTC Markets",
+    "RHM.F Frankfurt",
+    "RNMBF OTC Markets",
+    "RHM.SG Stuttgart",
+    "RHM.HM Hamburg"
+   ]
+  },
+  "ASML": {
+   "symbool": "ASML",
+   "n": 6766,
+   "eerste": "2000-01-03",
+   "laatste": "2026-11-25",
+   "slot": 1242.47,
+   "naam": "ASML Holding N.V.",
+   "valuta": "USD",
+   "beurs": "NasdaqGS",
+   "alternatieven": [
+    "ASML NASDAQ",
+    "ASML.AS Amsterdam",
+    "ASML.TO Toronto"
+   ]
+  },
+  "XYZQQQ": {
+   "error": "niet gevonden",
+   "candidates": []
+  }
+ }
+}
