@@ -28,6 +28,10 @@
 <main class="wrap grid">
   <section class="panel list-panel" aria-labelledby="h-stocks">
     <h2 id="h-stocks">Mijn aandelen</h2>
+    <form id="unlock-box" class="unlock" hidden>
+      <span id="unlock-box-label">Je centrale lijst is vergrendeld. Vul je wachtwoord in.</span>
+      <div class="row"><input id="unlock-pw" type="password" autocomplete="current-password" aria-labelledby="unlock-box-label" required><button id="unlock-btn" type="submit">Openen</button></div>
+    </form>
     <form id="add-form">
       <input id="ticker" placeholder="Ticker, bijv. ASML.AS" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
       <button type="submit" id="add-btn">Toevoegen</button>
@@ -35,7 +39,8 @@
     <p class="hint">Yahoo-tickers: <code>ASML.AS</code> Amsterdam · <code>AAPL</code> VS · <code>SAP.DE</code> Xetra · <code>^AEX</code> index</p>
     <p id="msg" role="status" aria-live="polite"></p>
     <ul id="stocks"></ul>
-    <details class="settings">
+    <button id="setup-hint" type="button" class="linkish" hidden>Dezelfde lijst ook op je telefoon? Stel de centrale lijst in</button>
+    <details class="settings" id="settings">
       <summary>Instellingen en overzetten</summary>
       <label for="provider">Koersbron</label>
       <select id="provider"></select>
@@ -43,13 +48,23 @@
         <label for="twelve-key">Twelve Data API-sleutel (gratis op twelvedata.com)</label>
         <input id="twelve-key" autocomplete="off" spellcheck="false">
       </div>
-      <label for="gh-repo">Centrale, privé lijst in GitHub</label>
-      <p class="hint">Eén keer per apparaat. Zie de uitleg in de README voor het aanmaken van de privé-repository en het token.</p>
-      <input id="gh-repo" autocomplete="off" spellcheck="false" placeholder="EBriai/BelegData">
-      <label for="gh-token">Token (fine-grained, alleen deze repository)</label>
-      <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
-      <p class="hint"><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Token aanmaken</a>: kies bij Repository access "Only select repositories" en je data-repository, en zet bij Repository permissions → Contents op "Read and write".</p>
-      <div class="row"><button id="gh-connect" type="button">Koppelen</button><button id="gh-disconnect" type="button">Ontkoppelen</button></div>
+      <div id="sync-setup" class="stack" hidden>
+        <strong class="sub-h">Eén centrale lijst voor al je apparaten</strong>
+        <p class="hint">Eenmalig, alleen op je pc. Je lijst wordt versleuteld met jouw wachtwoord opgeslagen. Daarna vraagt je telefoon alleen het wachtwoord.</p>
+        <p class="hint">1. <a href="https://github.com/settings/personal-access-tokens/new?name=Koersvergelijker&amp;description=Aandelenlijst%20opslaan&amp;expires_in=366&amp;contents=write" target="_blank" rel="noopener">Maak een GitHub-token</a>. Kies bij Repository access "Only select repositories" → BelegProg, controleer dat Contents op "Read and write" staat, en druk op Generate.</p>
+        <label for="setup-token">2. Plak het token</label>
+        <input id="setup-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+        <label for="setup-pw">3. Kies een wachtwoord (minstens 8 tekens, onthoud het goed)</label>
+        <input id="setup-pw" type="password" autocomplete="new-password">
+        <button id="setup-btn" type="button">Centrale lijst aanmaken</button>
+      </div>
+      <div id="sync-on" class="stack" hidden>
+        <strong class="sub-h">Centrale lijst staat aan</strong>
+        <p class="hint">Je lijst staat versleuteld in GitHub. Andere apparaten openen hem met je wachtwoord.</p>
+        <label for="new-token">Token verlopen? Plak hier een nieuw token</label>
+        <div class="row"><input id="new-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"><button id="token-btn" type="button">Vervangen</button></div>
+        <button id="forget-btn" type="button">Wachtwoord vergeten op dit apparaat</button>
+      </div>
       <label for="transfer">Lijst overzetten naar ander apparaat</label>
       <textarea id="transfer" rows="3" placeholder="Druk op Exporteren, of plak hier een export en druk op Importeren"></textarea>
       <div class="row"><button id="export" type="button">Exporteren</button><button id="import" type="button">Importeren</button></div>

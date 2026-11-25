@@ -54,7 +54,7 @@
     if (sync.enabled()) {
       setSync("Opslaan…");
       try { state.stocks = fixColors(await sync.change(mutate)); setSync("Gesynchroniseerd"); }
-      catch (e) { setSync("Niet gesynchroniseerd", true); throw new Error(`Opslaan in GitHub mislukt: ${e.message}`); }
+      catch (e) { setSync("Niet gesynchroniseerd", true); throw new Error(`Opslaan mislukt: ${e.message}`); }
     } else {
       state.stocks = fixColors(mutate(state.stocks.map((s) => ({ ...s }))));
     }
@@ -62,19 +62,30 @@
   }
 
   async function pullCentral(quiet = false) {
-    if (!sync.enabled()) { setSync("Alleen op dit apparaat"); return; }
+    if (!sync.enabled()) return;
     if (!quiet) setSync("Ophalen…");
-    try {
-      const before = JSON.stringify(state.stocks.map((s) => s.ticker).sort());
-      state.stocks = fixColors(await sync.pull(state.stocks));
-      storage.saveStocks(state.stocks);
-      setSync("Gesynchroniseerd");
-      if (JSON.stringify(state.stocks.map((s) => s.ticker).sort()) !== before) {
-        const known = new Set(state.stocks.map((s) => s.ticker));
-        state.selected = new Set([...state.selected].filter((t) => known.has(t)));
-        renderList(); drawChart();
-      }
-    } catch (e) { setSync("Niet gesynchroniseerd", true); msg(e.message, true); }
+    try { applyCentral(await sync.pull()); setSync("Gesynchroniseerd"); }
+    catch (e) { setSync("Niet gesynchroniseerd", true); if (!quiet) msg(e.message, true); }
+  }
+
+  function applyCentral(list) {
+    const before = JSON.stringify(state.stocks.map((s) => s.ticker).sort());
+    state.stocks = fixColors(list);
+    storage.saveStocks(state.stocks);
+    if (JSON.stringify(state.stocks.map((s) => s.ticker).sort()) !== before) {
+      const known = new Set(state.stocks.map((s) => s.ticker));
+      state.selected = new Set([...state.selected].filter((t) => known.has(t)));
+      renderList(); drawChart();
+    }
+  }
+
+  // Toon de juiste onderdelen voor "niet ingesteld", "vergrendeld" of "actief".
+  function showSyncState(mode) {
+    $("#unlock-box").hidden = mode !== "locked";
+    $("#sync-setup").hidden = mode !== "off";
+    $("#sync-on").hidden = mode !== "on";
+    $("#setup-hint").hidden = mode !== "off";
+    setSync({ off: "Alleen op dit apparaat", locked: "Vergrendeld", on: "Gesynchroniseerd", error: "Niet gesynchroniseerd" }[mode] || "", mode === "error");
   }
 
   function msg(text, err = false) { const m = $("#msg"); m.textContent = text; m.classList.toggle("err", err); }
@@ -246,25 +257,31 @@
     } catch (e) { msg(`Importeren mislukt: ${e.message}`, true); }
   };
 
-  $("#gh-token").value = sync.hasToken() ? "••••••••" : "";
-  $("#gh-repo").value = sync.getRepo();
-  $("#gh-connect").onclick = async () => {
-    const t = $("#gh-token").value.trim(), r = $("#gh-repo").value.trim();
-    if (!/^[\w.-]+\/[\w.-]+$/.test(r.replace(/^https:\/\/github\.com\//, "").replace(/\/$/, ""))) { msg("Vul de repository in als naam/repository, bijv. EBriai/BelegData.", true); return; }
-    if (!t) { msg("Plak eerst je GitHub-token in het veld.", true); return; }
-    sync.configure(t.startsWith("•") ? null : t, r);
-    $("#gh-token").value = "••••••••";
-    msg("Koppelen met GitHub…"); setSync("Ophalen…");
-    try { await sync.checkPrivate(); }
-    catch (e) { sync.configure("", ""); $("#gh-token").value = ""; setSync("Alleen op dit apparaat"); msg(e.message, true); return; }
-    await pullCentral();
-    if ($("#sync-status").textContent === "Gesynchroniseerd") msg(`Gekoppeld. Je lijst staat nu privé in ${sync.getRepo()} (${state.stocks.length} aandelen).`);
-    renderList(); drawChart();
+  $("#unlock-box").onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = $("#unlock-btn"); btn.disabled = true; msg("Openen…");
+    try { applyCentral(await sync.unlock($("#unlock-pw").value)); $("#unlock-pw").value = ""; showSyncState("on"); msg(`Je centrale lijst is geopend (${state.stocks.length} aandelen).`); renderList(); drawChart(); }
+    catch (err) { msg(err.message, true); }
+    finally { btn.disabled = false; }
   };
-  $("#gh-disconnect").onclick = () => {
-    sync.configure("", ""); $("#gh-token").value = "";
-    setSync("Alleen op dit apparaat"); msg("Ontkoppeld. Je lijst blijft op dit apparaat staan; de centrale lijst in GitHub blijft bestaan.");
+  $("#setup-btn").onclick = async () => {
+    const t = $("#setup-token").value.trim(), pw = $("#setup-pw").value;
+    if (!t) { msg("Plak eerst het GitHub-token.", true); return; }
+    const btn = $("#setup-btn"); btn.disabled = true; msg("Centrale lijst aanmaken…");
+    try {
+      await sync.setup(t, pw, state.stocks);
+      $("#setup-token").value = ""; $("#setup-pw").value = "";
+      showSyncState("on"); msg("Klaar. Open de app op je telefoon en vul daar alleen dit wachtwoord in.");
+    } catch (err) { msg(err.message, true); }
+    finally { btn.disabled = false; }
   };
+  $("#token-btn").onclick = async () => {
+    const t = $("#new-token").value.trim(); if (!t) { msg("Plak eerst het nieuwe token.", true); return; }
+    try { await sync.replaceToken(t); $("#new-token").value = ""; showSyncState("on"); msg("Token vervangen."); }
+    catch (err) { msg(err.message, true); }
+  };
+  $("#setup-hint").onclick = () => { $("#settings").open = true; $("#sync-setup").scrollIntoView({ behavior: "smooth", block: "start" }); };
+  $("#forget-btn").onclick = () => { sync.forget(); showSyncState("locked"); msg("Dit apparaat is vergrendeld. Je lijst blijft centraal bewaard."); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pullCentral(true); });
 
   // ---------- start ----------
@@ -281,7 +298,9 @@
     $("#banner-slot").appendChild(b);
   }
   renderSettings(); renderRanges(); renderList(); drawChart();
-  if (!window.BELEG_ARTIFACT) pullCentral(); else setSync("");
+  if (window.BELEG_ARTIFACT) { setSync(""); $("#sync-setup").hidden = true; }
+  else sync.init().then((mode) => { showSyncState(mode); if (mode === "on") pullCentral(); })
+    .catch((e) => { showSyncState("error"); msg(`Centrale lijst niet bereikbaar: ${e.message}. Je ziet de lijst van dit apparaat.`, true); });
 
   if ("serviceWorker" in navigator && !window.BELEG_NO_SW) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

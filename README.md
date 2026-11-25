@@ -27,25 +27,20 @@ Lokaal proberen kan ook: `python -m http.server` in deze map en open http://loca
 Koersen worden in de browser bewaard: de volledige historie één keer, daarna hooguit één
 keer per dag de laatste dagen erbij.
 
-## Gegevens: één centrale, privé lijst
+## Gegevens: één centrale, versleutelde lijst
 
-De app zelf (deze repository) is openbaar, zodat GitHub Pages gratis werkt. Je gegevens
-staan apart in een **privé** repository die alleen jij kunt zien.
+Je aandelenlijst staat op één plek: `data/kluis.json` in deze repository, **versleuteld**
+(AES-256) met een wachtwoord dat alleen jij kent. Het bestand zelf is zichtbaar, de inhoud
+(welke aandelen, en het GitHub-token waarmee de app opslaat) niet. Gebruik dus een goed
+wachtwoord: wie het raadt, kan de lijst lezen.
 
-Eenmalig:
-1. Maak op GitHub een nieuwe **privé** repository, bijv. `BelegData` (leeg laten mag).
-2. Maak een token: https://github.com/settings/personal-access-tokens/new
-   - Repository access: *Only select repositories* → `BelegData`
-   - Repository permissions → *Contents*: **Read and write**
-   - Kies een vervaldatum (bijv. 1 jaar) en kopieer het token.
+Eenmalig op de pc: in de app op "Stel de centrale lijst in" klikken, een GitHub-token maken
+(alleen voor deze repository, Contents: Read and write), dat plakken en een wachtwoord kiezen.
+Op elk ander apparaat vraagt de app alleen het wachtwoord. Het apparaat onthoudt het
+wachtwoord tot je op "Wachtwoord vergeten op dit apparaat" drukt.
 
-Op elk apparaat (pc en telefoon) één keer: Instellingen → repository `EBriai/BelegData`
-en het token invullen → **Koppelen**. De app weigert een openbare repository.
-
-De lijst komt in `data/stocks.json` in die privé-repository. Het token blijft alleen in de
-browser van het apparaat en mag niets anders dan die ene repository lezen en schrijven.
-Zonder koppeling bewaart de app de lijst alleen op het apparaat zelf. Koersen worden per
-apparaat gecachet en zijn sowieso openbare informatie.
+Is het token verlopen, dan plak je bij Instellingen een nieuw token. Koersen worden per
+apparaat gecachet en zijn openbare informatie.
 
 ## Opbouw (voor uitbreidingen)
 
@@ -53,7 +48,7 @@ apparaat gecachet en zijn sowieso openbare informatie.
 index.html          pagina
 style.css           opmaak (kleuren als variabelen, licht en donker)
 js/storage.js       opslag in de browser
-js/sync.js          centrale lijst in een privé GitHub-repository
+js/sync.js          centrale, versleutelde lijst (data/kluis.json)
 js/providers.js     koersbronnen; nieuwe bron = object met lookup() en history()
 js/prices.js        koerscache en dagelijkse update
 js/analysis.js      rekenwerk (uitlijnen, normaliseren), puur en testbaar
