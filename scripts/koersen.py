@@ -60,11 +60,12 @@ def search(query):
 
 
 def fetch(ticker):
+    """Koershistorie van één Yahoo-symbool, of None als er niets is."""
     t = yf.Ticker(ticker)
     h = t.history(start=START, auto_adjust=True, raise_errors=False)
     closes = h["Close"].dropna() if h is not None and not h.empty else None
     if closes is None or closes.empty:
-        return {"error": "niet gevonden", "candidates": search(ticker)}
+        return None
     meta = getattr(t, "history_metadata", {}) or {}
     days, vals = [], []
     for ts, v in closes.items():
@@ -75,6 +76,7 @@ def fetch(ticker):
         days.append(d)
         vals.append(float(f"{v:.6g}"))
     return {
+        "symbol": ticker,
         "name": meta.get("longName") or meta.get("shortName"),
         "currency": meta.get("currency"),
         "exchange": meta.get("fullExchangeName") or meta.get("exchangeName"),
@@ -83,23 +85,43 @@ def fetch(ticker):
     }
 
 
+def resolve(query):
+    """Zoals je hem intypt: 'RHM.DE' werkt direct. Bij 'RHM' of 'Rheinmetall' zoekt
+    Yahoo de beste notering (meestal de hoofdbeurs) en worden de andere beurzen
+    als alternatief meegegeven."""
+    data = fetch(query)
+    if data:
+        data["candidates"] = search(query) if "." not in query and not query.startswith("^") and "-" not in query else []
+        # alleen alternatieven met hetzelfde basissymbool zijn echt "andere beurzen"
+        base = query.split(".")[0]
+        data["candidates"] = [c for c in data["candidates"] if c["symbol"].split(".")[0] == base]
+        return data
+    cands = search(query)
+    for c in cands[:3]:
+        data = fetch(c["symbol"])
+        if data:
+            data["candidates"] = cands
+            return data
+    return {"error": "niet gevonden", "candidates": cands}
+
+
 def build(tickers):
     items = {}
     for t in tickers:
         print(f"- {t}")
         try:
-            items[t] = fetch(t)
+            items[t] = resolve(t)
         except Exception as e:
             items[t] = {"error": f"ophalen mislukt: {e}", "candidates": []}
         it = items[t]
-        print(f"  {len(it.get('days', []))} koersen" if "days" in it else f"  {it['error']}, {len(it['candidates'])} kandidaten")
+        print(f"  {it['symbol']}: {len(it['days'])} koersen, {len(it['candidates'])} alternatieven" if "days" in it else f"  {it['error']}, {len(it['candidates'])} kandidaten")
     return {"generated": datetime.now(timezone.utc).isoformat(timespec="seconds"), "items": items}
 
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
         res = build(sys.argv[2:])
-        summary = {t: ({"n": len(v["days"]), "eerste": v["days"][0], "laatste": v["days"][-1], "slot": v["close"][-1], "naam": v["name"], "valuta": v["currency"]}
+        summary = {t: ({"symbool": v["symbol"], "n": len(v["days"]), "eerste": v["days"][0], "laatste": v["days"][-1], "slot": v["close"][-1], "naam": v["name"], "valuta": v["currency"], "beurs": v["exchange"], "alternatieven": [c["symbol"] + " " + c["exchange"] for c in v["candidates"]]}
                        if "days" in v else v) for t, v in res["items"].items()}
         os.makedirs("out", exist_ok=True)
         with open("out/selftest.json", "w") as f:
