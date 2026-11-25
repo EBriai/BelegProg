@@ -21,4 +21,13 @@ assert.strictEqual(r.start, "2024-01-05");
 r = normalize({ A: S(Array.from({ length: 10 }, (_, i) => [`2024-01-${String(i + 1).padStart(2, "0")}`, i + 1])) }, "2024-01-05", "2024-01-06");
 assert.deepStrictEqual(r.series.A, [100, 120]);
 assert.deepStrictEqual(normalize({}).dates, []);
+// normalizeEach: een later begonnen aandeel maakt de periode niet korter
+{
+  const { normalizeEach } = Beleg.analysis;
+  const e = normalizeEach({ OUD: S([["2024-01-01", 10], ["2024-01-02", 11], ["2024-01-03", 12]]), NIEUW: S([["2024-01-03", 50]]) });
+  assert.strictEqual(e.start, "2024-01-01");
+  assert.deepStrictEqual(e.series.OUD, [100, 110, 120]);
+  assert.deepStrictEqual(e.series.NIEUW, [null, null, 100]);
+  assert.strictEqual(e.firstDay.NIEUW, "2024-01-03");
+}
 console.log("analysis: alle tests geslaagd");

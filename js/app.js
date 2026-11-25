@@ -512,9 +512,16 @@
     $("#warnings").textContent = warnings.join(" ");
     if (snap?.generated) $("#as-of").textContent = `Koersen bijgewerkt: ${new Date(snap.generated).toLocaleString("nl-NL", { dateStyle: "medium", timeStyle: "short" })}`;
     if (!Object.keys(series).length) { Plotly.purge("chart"); empty(waiting.length ? "De koersen worden opgehaald. Dit duurt ongeveer een minuut." : "Geen koersen."); renderList(); return; }
-    const data = analysis.normalize(series, startDate());
+    // elk aandeel op 100 op zijn eigen eerste dag: een recente beursgang maakt de periode niet korter
+    const data = analysis.normalizeEach(series, startDate());
     if (!data.dates.length) { Plotly.purge("chart"); empty("Geen koersen in deze periode."); return; }
     $("#base-day").textContent = ` (${new Date(data.start).toLocaleDateString("nl-NL")})`;
+    const lateLimit = new Date(Date.parse(data.start) + 10 * 864e5).toISOString().slice(0, 10);
+    const late = Object.keys(data.series).filter((t) => data.firstDay[t] > lateLimit);
+    if (late.length) {
+      warnings.push(`Later begonnen: ${late.map((t) => `${t} (vanaf ${new Date(data.firstDay[t]).toLocaleDateString("nl-NL")})`).join(", ")}. Die lijn begint op 100 op zijn eerste koersdag.`);
+      $("#warnings").textContent = warnings.join(" ");
+    }
 
     // beste rendement bovenaan, zodat legenda, tooltip en tabel dezelfde volgorde hebben
     const shown = tickers.filter((t) => data.series[t]).sort((a, b) => data.series[b].at(-1) - data.series[a].at(-1));
@@ -546,7 +553,7 @@
 
     const tbody = $("#summary tbody");
     for (const t of shown) {
-      const c = data.closes[t], ret = data.series[t].at(-1) - 100;
+      const c = data.closes[t].filter((x) => x != null), ret = data.series[t].at(-1) - 100;
       const cur = item(t)?.currency || "";
       const tr = document.createElement("tr");
       tr.dataset.t = t; tr.tabIndex = 0; tr.title = "Tik om deze lijn uit te lichten";
