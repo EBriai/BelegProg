@@ -21,7 +21,11 @@ Beleg.storage = (() => {
     getPrices: (t) => read("prices." + t, null),
     savePrices: (t, s) => write("prices." + t, s),
     removePrices: (t) => remove("prices." + t),
-    getSettings: () => ({ provider: window.BELEG_DEFAULT_PROVIDER || "yahoo", twelveKey: "", ...read("settings", {}) }),
+    getSettings() {
+      const s = { provider: window.BELEG_DEFAULT_PROVIDER || "github", ...read("settings", {}) };
+      if (!["github", "demo"].includes(s.provider)) s.provider = "github"; // oude bronnen (proxy, Twelve Data) bestaan niet meer
+      return s;
+    },
     saveSettings: (s) => write("settings", s),
     getUi: () => read("ui", {}),
     saveUi: (u) => write("ui", u),

@@ -105,3 +105,12 @@ td:first-child .swatch { margin-right: 8px; vertical-align: -1px; }
 .row input { flex: 1; min-width: 0; }
 .linkish { border: none; background: none; color: var(--accent); padding: 4px 0; min-height: 0; text-align: left; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
 .linkish[hidden] { display: none; }
+.add { display: flex; flex-direction: column; gap: 6px; }
+#exchange { font-size: 14px; min-height: 36px; padding: 4px 8px; color: var(--muted); }
+#stocks li { flex-direction: column; align-items: stretch; gap: 4px; }
+.stock-main { display: flex; align-items: center; gap: 6px; }
+.name small.pending { color: var(--accent); }
+.name small.bad { color: var(--down); white-space: normal; }
+select.alt { font-size: 13px; min-height: 34px; padding: 4px 8px; margin-left: 28px; width: calc(100% - 28px); }
+.setup-cta { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 500; }
+.setup-cta[hidden] { display: none; }

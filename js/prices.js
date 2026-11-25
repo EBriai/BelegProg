@@ -1,37 +1,22 @@
-// Koersen met cache: volledige historie één keer ophalen, daarna hooguit
-// één keer per dag de laatste dagen erbij.
+// Koersen voor de app: één momentopname met alle aandelen, in het geheugen
+// gehouden en op dit apparaat bewaard zodat de app snel opent.
 window.Beleg = window.Beleg || {};
 
 Beleg.prices = (() => {
-  const S = () => Beleg.storage;
-  const today = () => new Date().toISOString().slice(0, 10);
-  const provider = () => Beleg.providers.get(S().getSettings().provider);
-  const providerName = () => S().getSettings().provider;
+  let snap = null, fetchedAt = 0;
+  const providerName = () => Beleg.storage.getSettings().provider;
+  const CACHE = "beleg.koersen";
+  try { const c = JSON.parse(localStorage.getItem(CACHE) || "null"); if (c && c.source === providerName()) snap = c.snap; } catch {}
 
-  async function loadFull(ticker) {
-    const h = await provider().history(ticker, "2000-01-01");
-    const entry = { days: h.days, close: h.close, refreshed: today(), source: providerName() };
-    if (!S().savePrices(ticker, entry)) console.warn("Cache vol; koersen alleen in geheugen voor", ticker);
-    return entry;
+  /** Momentopname ophalen; maxAgeMs bepaalt hoe oud het geheugen mag zijn. */
+  async function snapshot(tickers, maxAgeMs = 60_000) {
+    if (snap && Date.now() - fetchedAt < maxAgeMs && tickers.every((t) => snap.items[t])) return snap;
+    const fresh = await Beleg.providers.get(providerName()).snapshot(tickers);
+    snap = fresh; fetchedAt = Date.now();
+    try { localStorage.setItem(CACHE, JSON.stringify({ source: providerName(), snap })); } catch { /* te groot: alleen in geheugen */ }
+    return snap;
   }
-
-  /** Geeft {series, warning}. Bij een mislukte update wordt de oude cache gebruikt. */
-  async function get(ticker) {
-    let c = S().getPrices(ticker);
-    if (!c || c.source !== providerName()) return { series: await loadFull(ticker) };
-    if (c.refreshed === today()) return { series: c };
-    try {
-      const from = c.days.at(-8) || c.days[0];
-      const h = await provider().history(ticker, from);
-      const keep = c.days.findIndex((d) => d >= (h.days[0] || "9999"));
-      const cut = keep === -1 ? c.days.length : keep;
-      c = { ...c, days: c.days.slice(0, cut).concat(h.days), close: c.close.slice(0, cut).concat(h.close), refreshed: today() };
-      S().savePrices(ticker, c);
-      return { series: c };
-    } catch (e) {
-      return { series: c, warning: `${ticker}: bijwerken mislukt, koersen tot ${c.days.at(-1)} getoond.` };
-    }
-  }
-
-  return { get, loadFull };
+  const cached = () => snap;
+  const reset = () => { snap = null; fetchedAt = 0; try { localStorage.removeItem(CACHE); } catch {} };
+  return { snapshot, cached, reset };
 })();

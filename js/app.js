@@ -23,6 +23,16 @@
     selected: new Set(ui.selected || []),
     range: ui.range && ui.range !== "custom" ? ui.range : "1J",
     pendingDelete: null,
+    waiting: false,   // wacht op GitHub Actions
+  };
+  const EXCHANGES = [["", "Beurs: automatisch"], [".AS", "Amsterdam"], [".DE", "Xetra (Duitsland)"], [".F", "Frankfurt"], [".PA", "Parijs"],
+    [".BR", "Brussel"], [".L", "Londen"], [".MI", "Milaan"], [".MC", "Madrid"], [".SW", "Zwitserland"], [".ST", "Stockholm"],
+    [".CO", "Kopenhagen"], [".OL", "Oslo"], [".HE", "Helsinki"], [".VI", "Wenen"], [".LS", "Lissabon"], ["=US", "VS (NYSE/Nasdaq)"],
+    [".TO", "Toronto"], [".T", "Tokio"], [".HK", "Hongkong"], [".AX", "Australië"]];
+  const item = (t) => Beleg.prices.cached()?.items?.[t];
+  const isPending = (s) => {
+    const snap = Beleg.prices.cached(), it = snap?.items?.[s.ticker];
+    return !it || (s.addedAt && snap.generated && snap.generated < s.addedAt && it.error);
   };
   const saveUi = () => storage.saveUi({ selected: [...state.selected], range: state.range });
   // kleur volgt het aandeel en blijft gelijk bij (de)selecteren
@@ -71,6 +81,8 @@
   function applyCentral(list) {
     const before = JSON.stringify(state.stocks.map((s) => s.ticker).sort());
     state.stocks = fixColors(list);
+    // nieuw apparaat: zet de eerste aandelen meteen aan in de grafiek
+    if (!storage.getUi().selected) { state.selected = new Set(state.stocks.slice(0, MAX).map((s) => s.ticker)); saveUi(); }
     storage.saveStocks(state.stocks);
     if (JSON.stringify(state.stocks.map((s) => s.ticker).sort()) !== before) {
       const known = new Set(state.stocks.map((s) => s.ticker));
@@ -103,15 +115,27 @@
       const c = colorOf(s.ticker);
       const li = document.createElement("li");
       const confirming = state.pendingDelete === s.ticker;
+      const it = item(s.ticker);
+      let sub, subClass = "";
+      if (it && !it.error) sub = [it.symbol !== s.ticker ? it.symbol : null, it.name, it.exchange, it.currency].filter(Boolean).join(" · ");
+      else if (isPending(s)) { sub = "Koersen worden opgehaald…"; subClass = "pending"; }
+      else { sub = it.candidates?.length ? "Niet gevonden, kies hieronder een beurs" : "Niet gevonden bij Yahoo. Controleer de ticker."; subClass = "bad"; }
+      const altList = (it?.candidates || []).filter((a) => a.symbol !== it?.symbol);
+      const alts = altList.length ? altList : null;
       li.innerHTML = `
+        <div class="stock-main">
         <label class="stock">
           <input type="checkbox" ${on ? "checked" : ""}>
           <span class="swatch" style="background:${on ? c : "transparent"};border-color:${c}"></span>
-          <span class="name"><strong>${esc(s.ticker)}</strong><small>${esc([s.name, s.currency].filter(Boolean).join(" · "))}</small></span>
+          <span class="name"><strong>${esc(s.ticker)}</strong><small class="${subClass}">${esc(sub)}</small></span>
         </label>
         ${confirming
           ? '<button class="del-yes">Verwijderen</button><button class="del-no">Annuleer</button>'
-          : `<button class="del" aria-label="${esc(s.ticker)} verwijderen">×</button>`}`;
+          : `<button class="del" aria-label="${esc(s.ticker)} verwijderen">×</button>`}
+        </div>
+        ${alts ? `<select class="alt" aria-label="Andere beurs voor ${esc(s.ticker)}"><option value="">${it.error ? "Kies de juiste notering…" : "Andere beurs kiezen…"}</option>${alts.map((a) => `<option value="${esc(a.symbol)}">${esc(a.symbol)} · ${esc(a.exchange)} · ${esc(a.name)}</option>`).join("")}</select>` : ""}`;
+      const altSel = li.querySelector(".alt");
+      if (altSel) altSel.onchange = () => { if (altSel.value) replaceTicker(s.ticker, altSel.value); };
       li.querySelector("input").onchange = (e) => {
         if (e.target.checked && state.selected.size >= MAX) {
           e.target.checked = false; msg(`Maximaal ${MAX} aandelen tegelijk in de grafiek.`, true); return;
@@ -124,7 +148,7 @@
           state.pendingDelete = null;
           try { await commit((list) => list.filter((x) => x.ticker !== s.ticker)); }
           catch (e) { msg(e.message, true); renderList(); return; }
-          state.selected.delete(s.ticker); storage.removePrices(s.ticker); saveUi();
+          state.selected.delete(s.ticker); saveUi();
           msg(`${s.ticker} verwijderd.`); renderList(); drawChart();
         };
         li.querySelector(".del-no").onclick = () => { state.pendingDelete = null; renderList(); };
@@ -135,24 +159,50 @@
     }
   }
 
-  async function addStock(raw) {
-    const ticker = raw.trim().toUpperCase();
-    if (!ticker) return;
-    if (state.stocks.some((s) => s.ticker === ticker)) { msg(`${ticker} staat al in de lijst.`, true); return; }
-    const btn = $("#add-btn"); btn.disabled = true; msg(`${ticker} ophalen…`);
+  // Na een wijziging zet GitHub Actions de koersen klaar (±1 minuut). Zolang
+  // er aandelen wachten, kijken we elke 10 seconden of ze er zijn.
+  async function waitForPrices() {
+    if (state.waiting) return;
+    state.waiting = true;
+    const until = Date.now() + 5 * 60_000;
     try {
-      const prov = providers.get(storage.getSettings().provider);
-      const info = await prov.lookup(ticker);
-      const full = await prices.loadFull(ticker);
-      const entry = { ticker, name: info.name, currency: info.currency, color: freeColor(), addedAt: new Date().toISOString() };
+      while (Date.now() < until && state.stocks.some(isPending)) {
+        await new Promise((r) => setTimeout(r, 10_000));
+        try { await Beleg.prices.snapshot(state.stocks.map((s) => s.ticker), 0); } catch {}
+        renderList(); drawChart();
+      }
+      if (state.stocks.some(isPending)) msg("De koersen zijn er na 5 minuten nog niet. GitHub is mogelijk traag; de app probeert het opnieuw als je hem straks opent.", true);
+    } finally { state.waiting = false; }
+  }
+
+  async function addStock(raw, suffix) {
+    let ticker = raw.trim().toUpperCase().replace(/\s+/g, " ");
+    if (!ticker) return;
+    if (suffix && !/[.^=]/.test(ticker)) ticker += suffix === "=US" ? "" : suffix;
+    if (state.stocks.some((s) => s.ticker === ticker)) { msg(`${ticker} staat al in de lijst.`, true); return; }
+    if (storage.getSettings().provider === "github" && !sync.enabled()) { msg("Stel eerst de centrale lijst in (of open hem met je wachtwoord). Pas dan kan de app koersen ophalen.", true); return; }
+    const btn = $("#add-btn"); btn.disabled = true; msg(`${ticker} toevoegen…`);
+    try {
+      const entry = { ticker, color: freeColor(), addedAt: new Date().toISOString() };
       await commit((list) => (list.some((x) => x.ticker === ticker) ? list : [...list, entry]));
       if (state.selected.size < MAX) state.selected.add(ticker);
       saveUi();
-      msg(`${ticker} toegevoegd (${full.days.length.toLocaleString("nl-NL")} koersen vanaf ${full.days[0] ?? "–"}).`);
-      $("#ticker").value = "";
+      $("#ticker").value = ""; $("#exchange").value = "";
+      if (storage.getSettings().provider === "demo") { await Beleg.prices.snapshot(state.stocks.map((s) => s.ticker), 0); msg(`${ticker} toegevoegd.`); }
+      else { msg(`${ticker} toegevoegd. GitHub haalt nu de koersen op, dat duurt ongeveer een minuut.`); waitForPrices(); }
       renderList(); drawChart();
     } catch (e) { msg(e.message, true); }
     finally { btn.disabled = false; }
+  }
+
+  async function replaceTicker(oldT, newT) {
+    if (state.stocks.some((s) => s.ticker === newT)) { msg(`${newT} staat al in de lijst.`, true); renderList(); return; }
+    try {
+      await commit((list) => list.map((x) => (x.ticker === oldT ? { ...x, ticker: newT, addedAt: new Date().toISOString() } : x)));
+      if (state.selected.delete(oldT)) state.selected.add(newT);
+      saveUi(); msg(`${oldT} vervangen door ${newT}. Koersen worden opgehaald…`);
+      renderList(); drawChart(); waitForPrices();
+    } catch (e) { msg(e.message, true); renderList(); }
   }
 
   // ---------- periode ----------
@@ -185,13 +235,20 @@
     if (!tickers.length) { Plotly.purge("chart"); empty("Vink één of meer aandelen aan om ze te vergelijken."); return; }
     empty(""); $("#loading").hidden = false;
     const series = {}, warnings = [];
-    await Promise.all(tickers.map(async (t) => {
-      try { const r = await prices.get(t); series[t] = r.series; if (r.warning) warnings.push(r.warning); }
-      catch (e) { warnings.push(`${t}: ${e.message}`); }
-    }));
+    let snap = prices.cached();
+    try { snap = await prices.snapshot(state.stocks.map((s) => s.ticker)); }
+    catch (e) { warnings.push(snap ? `Bijwerken mislukt (${e.message}). Je ziet de laatst opgehaalde koersen.` : e.message); }
     if (seq !== drawSeq) return; // er is intussen opnieuw getekend
     $("#loading").hidden = true;
+    renderList(); // namen en status komen uit de koersen
+    for (const t of tickers) { const it = snap?.items?.[t]; if (it && it.days) series[t] = it; }
+    const waiting = tickers.filter((t) => !snap?.items?.[t]);
+    const notFound = tickers.filter((t) => snap?.items?.[t]?.error);
+    if (waiting.length) warnings.push(`Koersen voor ${waiting.join(", ")} worden nog opgehaald.`);
+    if (notFound.length) warnings.push(`Niet gevonden: ${notFound.join(", ")}.`);
     $("#warnings").textContent = warnings.join(" ");
+    if (snap?.generated) $("#as-of").textContent = `Koersen bijgewerkt: ${new Date(snap.generated).toLocaleString("nl-NL", { dateStyle: "medium", timeStyle: "short" })}`;
+    if (!Object.keys(series).length) { Plotly.purge("chart"); empty(waiting.length ? "De koersen worden opgehaald. Dit duurt ongeveer een minuut." : "Geen koersen."); renderList(); return; }
     const data = analysis.normalize(series, startDate());
     if (!data.dates.length) { Plotly.purge("chart"); empty("Geen koersen in deze periode."); return; }
     $("#base-day").textContent = ` (${new Date(data.start).toLocaleDateString("nl-NL")})`;
@@ -218,7 +275,7 @@
     const tbody = $("#summary tbody");
     for (const t of shown) {
       const c = data.closes[t], ret = data.series[t].at(-1) - 100;
-      const cur = state.stocks.find((s) => s.ticker === t)?.currency || "";
+      const cur = item(t)?.currency || "";
       const tr = document.createElement("tr");
       tr.innerHTML = `<td><span class="swatch" style="background:${colorOf(t)};border-color:${colorOf(t)}"></span>${esc(t)}</td>
         <td>${fmt(c[0])}</td><td>${fmt(c.at(-1))} <span class="cur">${esc(cur)}</span></td>
@@ -234,14 +291,11 @@
     for (const [k, p] of Object.entries(providers.all)) {
       const o = document.createElement("option"); o.value = k; o.textContent = p.label; o.selected = k === s.provider; sel.appendChild(o);
     }
-    $("#twelve-key").value = s.twelveKey || "";
-    $("#twelve-row").hidden = s.provider !== "twelve";
   }
   $("#provider").onchange = (e) => {
     storage.saveSettings({ ...storage.getSettings(), provider: e.target.value });
-    renderSettings(); msg("Koersbron gewijzigd. Koersen worden opnieuw opgehaald."); drawChart();
+    prices.reset(); renderSettings(); msg("Koersbron gewijzigd."); renderList(); drawChart();
   };
-  $("#twelve-key").onchange = (e) => { storage.saveSettings({ ...storage.getSettings(), twelveKey: e.target.value.trim() }); drawChart(); };
   $("#export").onclick = async () => {
     const txt = JSON.stringify(storage.exportAll());
     $("#transfer").value = txt;
@@ -260,7 +314,7 @@
   $("#unlock-box").onsubmit = async (e) => {
     e.preventDefault();
     const btn = $("#unlock-btn"); btn.disabled = true; msg("Openen…");
-    try { applyCentral(await sync.unlock($("#unlock-pw").value)); $("#unlock-pw").value = ""; showSyncState("on"); msg(`Je centrale lijst is geopend (${state.stocks.length} aandelen).`); renderList(); drawChart(); }
+    try { applyCentral(await sync.unlock($("#unlock-pw").value)); $("#unlock-pw").value = ""; showSyncState("on"); prices.reset(); msg(`Je centrale lijst is geopend (${state.stocks.length} aandelen).`); renderList(); drawChart(); }
     catch (err) { msg(err.message, true); }
     finally { btn.disabled = false; }
   };
@@ -271,7 +325,8 @@
     try {
       await sync.setup(t, pw, state.stocks);
       $("#setup-token").value = ""; $("#setup-pw").value = "";
-      showSyncState("on"); msg("Klaar. Open de app op je telefoon en vul daar alleen dit wachtwoord in.");
+      showSyncState("on"); msg("Klaar. GitHub haalt nu de koersen op (ongeveer een minuut). Op je telefoon vul je straks alleen dit wachtwoord in.");
+      renderList(); drawChart(); waitForPrices();
     } catch (err) { msg(err.message, true); }
     finally { btn.disabled = false; }
   };
@@ -285,7 +340,8 @@
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pullCentral(true); });
 
   // ---------- start ----------
-  $("#add-form").onsubmit = (e) => { e.preventDefault(); addStock($("#ticker").value); };
+  $("#add-form").onsubmit = (e) => { e.preventDefault(); addStock($("#ticker").value, $("#exchange").value); };
+  for (const [v, label] of EXCHANGES) { const o = document.createElement("option"); o.value = v; o.textContent = label; $("#exchange").appendChild(o); }
   $("#start").onchange = () => { state.range = "custom"; renderRanges(); drawChart(); };
   darkMq.addEventListener("change", () => { renderList(); drawChart(); });
   new MutationObserver(() => { renderList(); drawChart(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -294,12 +350,18 @@
   if (window.BELEG_ARTIFACT) {
     $("#mode-tag").textContent = "Testversie";
     const b = document.createElement("p"); b.className = "banner";
-    b.textContent = "Testversie op claude.ai: deze pagina mag geen koersen van internet ophalen, dus je ziet verzonnen demokoersen. Je lijst wordt alleen in deze browser bewaard. De echte versie haalt wel live koersen op.";
+    b.textContent = "Testversie op claude.ai met verzonnen demokoersen. De echte app staat op https://ebriai.github.io/BelegProg/";
     $("#banner-slot").appendChild(b);
   }
   renderSettings(); renderRanges(); renderList(); drawChart();
   if (window.BELEG_ARTIFACT) { setSync(""); $("#sync-setup").hidden = true; }
-  else sync.init().then((mode) => { showSyncState(mode); if (mode === "on") pullCentral(); })
+  else sync.init().then(async (mode) => {
+      showSyncState(mode);
+      if (mode !== "on") return;
+      await pullCentral();
+      try { await sync.ensureKoersKey(); } catch (e) { msg(e.message, true); }
+      drawChart(); if (state.stocks.some(isPending)) waitForPrices();
+    })
     .catch((e) => { showSyncState("error"); msg(`Centrale lijst niet bereikbaar: ${e.message}. Je ziet de lijst van dit apparaat.`, true); });
 
   if ("serviceWorker" in navigator && !window.BELEG_NO_SW) navigator.serviceWorker.register("sw.js").catch(() => {});
