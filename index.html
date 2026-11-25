@@ -52,7 +52,9 @@
       <button id="bulk-btn" type="button">Alles toevoegen</button>
     </details>
     <p id="msg" role="status" aria-live="polite"></p>
-    <ul id="stocks"></ul>
+    <div id="groups" class="groups" hidden></div>
+    <h3 id="h-main" class="sub-h" hidden>Hoofdgroep <span>Sleep een aandeel aan <span aria-hidden="true">⠿</span> naar een groep, of tik erop om te kiezen.</span></h3>
+    <ul id="stocks" data-drop="main"></ul>
     <button id="setup-hint" type="button" class="setup-cta" hidden>Eenmalig instellen om echte koersen op te halen</button>
     <details class="settings" id="settings">
       <summary>Instellingen en overzetten</summary>

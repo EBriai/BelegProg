@@ -17,6 +17,9 @@ Beleg.storage = (() => {
     // aandelen: [{ticker, name, currency, addedAt}]
     getStocks: () => read("stocks", []),
     saveStocks: (list) => write("stocks", list),
+    // namen van de vier groepen
+    getGroups: () => read("groups", null),
+    saveGroups: (g) => write("groups", g),
     // koerscache per ticker: {days, close, refreshed, source}
     getPrices: (t) => read("prices." + t, null),
     savePrices: (t, s) => write("prices." + t, s),

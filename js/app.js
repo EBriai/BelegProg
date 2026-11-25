@@ -7,6 +7,9 @@
   };
   const MAX = 20;
   const DASHES = ["solid", "dash", "dot"];
+  const NGROUPS = 4, GSIZE = 5;
+  const normGroups = (g) => Array.from({ length: NGROUPS }, (_, i) => String(g?.[i] ?? "").trim().slice(0, 24) || `Groep ${i + 1}`);
+  const groupOf = (s) => (Number.isInteger(s.group) && s.group >= 0 && s.group < NGROUPS ? s.group : null);
   const RANGES = [["1M", 1], ["6M", 6], ["YTD", "ytd"], ["1J", 12], ["3J", 36], ["5J", 60], ["10J", 120], ["Max", null]];
   const $ = (s) => document.querySelector(s);
   const darkMq = matchMedia("(prefers-color-scheme: dark)");
@@ -22,9 +25,11 @@
   const state = {
     stocks: storage.getStocks(),
     selected: new Set(ui.selected || []),
+    groups: normGroups(storage.getGroups()),
     range: ui.range && ui.range !== "custom" ? ui.range : "1J",
     pendingDelete: null,
     highlight: null,
+    assigning: null,   // ticker waarvoor de knoppen "Naar groep" open staan
     waiting: false,   // wacht op GitHub Actions
   };
   // Beurzen: Yahoo-achtervoegsel, afkortingen (de eerste wordt getoond) en volledige naam.
@@ -106,15 +111,17 @@
 
   /** Alle wijzigingen aan de lijst lopen hierlangs: centraal (gist) als dat
    *  is ingesteld, anders alleen op dit apparaat. */
-  async function commit(mutate) {
+  async function commit(mutate, mutateGroups) {
+    const mg = mutateGroups && ((g) => normGroups(mutateGroups(normGroups(g))));
     if (sync.enabled()) {
       setSync("Opslaan…");
-      try { state.stocks = fixColors(await sync.change(mutate)); setSync("Gesynchroniseerd"); }
+      try { state.stocks = fixColors(await sync.change(mutate, mg)); state.groups = normGroups(sync.groups() || state.groups); setSync("Gesynchroniseerd"); }
       catch (e) { setSync("Niet gesynchroniseerd", true); throw new Error(`Opslaan mislukt: ${e.message}`); }
     } else {
       state.stocks = fixColors(mutate(state.stocks.map((s) => ({ ...s }))));
+      if (mg) state.groups = mg(state.groups);
     }
-    storage.saveStocks(state.stocks);
+    storage.saveStocks(state.stocks); storage.saveGroups(state.groups);
   }
 
   async function pullCentral(quiet = false) {
@@ -126,7 +133,11 @@
 
   function applyCentral(list) {
     const before = JSON.stringify(state.stocks.map((s) => s.ticker).sort());
+    const layout = () => JSON.stringify([state.groups, state.stocks.map((s) => [s.ticker, groupOf(s)]).sort()]);
+    const beforeLayout = layout();
     state.stocks = fixColors(list);
+    if (sync.groups()) state.groups = normGroups(sync.groups());
+    storage.saveGroups(state.groups);
     // nieuw apparaat: zet de eerste aandelen meteen aan in de grafiek
     if (!storage.getUi().selected) { state.selected = new Set(state.stocks.slice(0, MAX).map((s) => s.ticker)); saveUi(); }
     storage.saveStocks(state.stocks);
@@ -134,7 +145,7 @@
       const known = new Set(state.stocks.map((s) => s.ticker));
       state.selected = new Set([...state.selected].filter((t) => known.has(t)));
       renderList(); drawChart();
-    }
+    } else if (layout() !== beforeLayout && !document.activeElement?.classList.contains("gname")) renderList();
   }
 
   // Toon de juiste onderdelen voor "niet ingesteld", "vergrendeld" of "actief".
@@ -149,14 +160,124 @@
   function msg(text, err = false) { const m = $("#msg"); m.textContent = text; m.classList.toggle("err", err); }
 
   // ---------- lijst ----------
+  const byTicker = (a, b) => a.ticker.localeCompare(b.ticker);
   function renderList() {
+    renderGroups();
     const ul = $("#stocks");
     ul.innerHTML = "";
+    $("#h-main").hidden = !state.stocks.length;
     if (!state.stocks.length) {
       ul.innerHTML = '<li class="empty-list">Nog geen aandelen. Voeg er hierboven een toe, bijvoorbeeld <b>ASML.AS</b>.</li>';
       return;
     }
-    for (const s of [...state.stocks].sort((a, b) => a.ticker.localeCompare(b.ticker))) {
+    const main = state.stocks.filter((s) => groupOf(s) === null).sort(byTicker);
+    if (!main.length) ul.innerHTML = '<li class="drop-hint">Alle aandelen zitten in een groep. Sleep er een hierheen om hem uit zijn groep te halen.</li>';
+    for (const s of main) ul.appendChild(stockLi(s));
+  }
+
+  function renderGroups() {
+    const box = $("#groups");
+    box.hidden = !state.stocks.length;
+    box.innerHTML = "";
+    state.groups.forEach((name, g) => {
+      const members = state.stocks.filter((s) => groupOf(s) === g).sort(byTicker);
+      const nOn = members.filter((s) => state.selected.has(s.ticker)).length;
+      const sec = document.createElement("section");
+      sec.className = "group"; sec.dataset.drop = g;
+      sec.innerHTML = `
+        <div class="group-head">
+          <input type="checkbox" class="gchk" aria-label="Groep ${esc(name)} in de grafiek" ${members.length && nOn === members.length ? "checked" : ""} ${members.length ? "" : "disabled"}>
+          <input class="gname" value="${esc(name)}" maxlength="24" aria-label="Naam van groep ${g + 1}" enterkeyhint="done" spellcheck="false">
+          <span class="gcount">${members.length}/${GSIZE}</span>
+        </div>
+        <ul class="glist"></ul>`;
+      const chk = sec.querySelector(".gchk");
+      chk.indeterminate = nOn > 0 && nOn < members.length;
+      chk.onchange = () => {
+        if (chk.checked) {
+          const add = members.map((s) => s.ticker).filter((t) => !state.selected.has(t));
+          const room = MAX - state.selected.size;
+          add.slice(0, room).forEach((t) => state.selected.add(t));
+          if (add.length > room) msg(`Maximaal ${MAX} aandelen tegelijk in de grafiek. ${add.length - room} van ${name} passen er niet meer bij.`, true);
+        } else members.forEach((s) => state.selected.delete(s.ticker));
+        saveUi(); renderList(); drawChart();
+      };
+      const nameIn = sec.querySelector(".gname");
+      nameIn.onkeydown = (e) => { if (e.key === "Enter") nameIn.blur(); if (e.key === "Escape") { nameIn.value = name; nameIn.blur(); } };
+      nameIn.onchange = async () => {
+        const v = nameIn.value.trim().slice(0, 24) || `Groep ${g + 1}`;
+        nameIn.value = v;
+        if (v === state.groups[g]) return;
+        try { await commit((list) => list, (gr) => { gr[g] = v; return gr; }); msg(`Groepsnaam opgeslagen: ${v}.`); }
+        catch (e) { msg(e.message, true); renderList(); }
+      };
+      const ul = sec.querySelector(".glist");
+      if (!members.length) ul.innerHTML = '<li class="drop-hint">Sleep hier aandelen naartoe (max. 5)</li>';
+      for (const s of members) ul.appendChild(stockLi(s));
+      box.appendChild(sec);
+    });
+  }
+
+  // Verplaats een aandeel naar groep g (0–3) of terug naar de hoofdgroep ("main").
+  async function moveToGroup(ticker, dest) {
+    state.assigning = null;
+    const g = dest === "main" ? null : Number(dest);
+    const s = state.stocks.find((x) => x.ticker === ticker);
+    if (!s || groupOf(s) === g) { renderList(); return; }
+    if (g !== null && state.stocks.filter((x) => groupOf(x) === g).length >= GSIZE) {
+      msg(`${state.groups[g]} is vol (maximaal ${GSIZE} aandelen). Haal er eerst een uit.`, true); renderList(); return;
+    }
+    try {
+      await commit((list) => list.map((x) => {
+        if (x.ticker !== ticker) return x;
+        const y = { ...x }; if (g === null) delete y.group; else y.group = g; return y;
+      }));
+      msg(g === null ? `${ticker} staat weer in de hoofdgroep.` : `${ticker} zit nu in ${state.groups[g]}.`);
+    } catch (e) { msg(e.message, true); }
+    renderList();
+  }
+
+  // Slepen met muis én vinger (pointer events; HTML5 drag-and-drop werkt niet op Android).
+  function startDrag(e, s, li) {
+    if (e.button > 0) return;
+    e.preventDefault();
+    const x0 = e.clientX, y0 = e.clientY;
+    let ghost = null, target = null, lastY = y0, raf = 0;
+    const findTarget = (x, y) => document.elementFromPoint(x, y)?.closest("[data-drop]") || null;
+    const scroll = () => {
+      const edge = 70;
+      if (lastY < edge) scrollBy(0, -Math.ceil((edge - lastY) / 4));
+      else if (lastY > innerHeight - edge) scrollBy(0, Math.ceil((lastY - innerHeight + edge) / 4));
+      raf = requestAnimationFrame(scroll);
+    };
+    const move = (ev) => {
+      lastY = ev.clientY;
+      if (!ghost) {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+        ghost = document.createElement("div"); ghost.className = "drag-ghost"; ghost.innerHTML = `${swatch(s.ticker)}<b>${esc(s.ticker)}</b>`;
+        document.body.appendChild(ghost); li.classList.add("dragging"); document.body.classList.add("dragging-stock");
+        raf = requestAnimationFrame(scroll);
+      }
+      ghost.style.transform = `translate(${ev.clientX + 10}px, ${ev.clientY - 18}px)`;
+      const t = findTarget(ev.clientX, ev.clientY);
+      if (t !== target) { target?.classList.remove("over"); target = t; target?.classList.add("over"); }
+    };
+    const end = (ev) => {
+      removeEventListener("pointermove", move); removeEventListener("pointerup", end); removeEventListener("pointercancel", end);
+      cancelAnimationFrame(raf);
+      document.body.classList.remove("dragging-stock");
+      if (!ghost) { // alleen getikt: toon de knoppen om een groep te kiezen
+        if (ev.type === "pointerup") { state.assigning = state.assigning === s.ticker ? null : s.ticker; renderList(); }
+        return;
+      }
+      ghost.remove(); li.classList.remove("dragging"); target?.classList.remove("over");
+      if (ev.type === "pointerup" && target) moveToGroup(s.ticker, target.dataset.drop);
+    };
+    addEventListener("pointermove", move); addEventListener("pointerup", end); addEventListener("pointercancel", end);
+  }
+
+  function stockLi(s) {
+    {
       const on = state.selected.has(s.ticker);
       const li = document.createElement("li");
       const confirming = state.pendingDelete === s.ticker;
@@ -169,6 +290,7 @@
       const alts = altList.length ? altList : null;
       li.innerHTML = `
         <div class="stock-main">
+        <button type="button" class="grip" aria-label="${esc(s.ticker)} naar een groep verplaatsen" title="Slepen naar een groep, of tikken om te kiezen"><svg viewBox="0 0 10 16" aria-hidden="true"><g fill="currentColor"><circle cx="2.5" cy="3" r="1.4"/><circle cx="7.5" cy="3" r="1.4"/><circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/><circle cx="2.5" cy="13" r="1.4"/><circle cx="7.5" cy="13" r="1.4"/></g></svg></button>
         <label class="stock">
           <input type="checkbox" ${on ? "checked" : ""}>
           ${swatch(s.ticker, on)}
@@ -179,6 +301,17 @@
           : `<button class="del" aria-label="${esc(s.ticker)} verwijderen">×</button>`}
         </div>
         ${alts ? `<select class="alt" aria-label="Andere beurs voor ${esc(s.ticker)}"><option value="">${it.error ? "Kies de juiste notering…" : "Andere beurs kiezen…"}</option>${alts.map((a) => `<option value="${esc(a.symbol)}">${esc(a.symbol)} · ${esc(exchLabel(a.symbol, a.exchange))}</option>`).join("")}</select>` : ""}`;
+      if (state.assigning === s.ticker) {
+        const cur = groupOf(s);
+        const opts = state.groups.map((n, g) => [g, n, state.stocks.filter((x) => groupOf(x) === g).length]).filter(([g]) => g !== cur);
+        const row = document.createElement("div"); row.className = "assign";
+        row.innerHTML = '<span>Naar:</span>' + opts.map(([g, n, k]) => `<button type="button" data-g="${g}" ${k >= GSIZE ? "disabled" : ""}>${esc(n)} <small>${k}/${GSIZE}</small></button>`).join("")
+          + (cur !== null ? '<button type="button" data-g="main">Hoofdgroep</button>' : "");
+        row.onclick = (e) => { const b = e.target.closest("button[data-g]"); if (b) moveToGroup(s.ticker, b.dataset.g); };
+        li.appendChild(row);
+      }
+      li.querySelector(".grip").onpointerdown = (e) => startDrag(e, s, li);
+      li.querySelector(".grip").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); state.assigning = state.assigning === s.ticker ? null : s.ticker; renderList(); } };
       const altSel = li.querySelector(".alt");
       if (altSel) altSel.onchange = () => { if (altSel.value) replaceTicker(s.ticker, altSel.value); };
       li.querySelector("input").onchange = (e) => {
@@ -200,7 +333,7 @@
       } else {
         li.querySelector(".del").onclick = () => { state.pendingDelete = s.ticker; renderList(); };
       }
-      ul.appendChild(li);
+      return li;
     }
   }
 

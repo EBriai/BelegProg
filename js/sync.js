@@ -170,10 +170,11 @@ Beleg.sync = (() => {
   }
 
   /** Pas een wijziging toe op de nieuwste centrale lijst en sla hem versleuteld op. */
-  async function change(mutate) {
+  async function change(mutate, mutateGroups) {
     for (let i = 0; i < 3; i++) {
       const latest = (await pull()) || [];
       const next = { ...vault, stocks: mutate(latest.map((s) => ({ ...s }))) };
+      if (mutateGroups) next.groups = mutateGroups([...(vault.groups || [])]);
       try {
         await writeFile(await encrypt(next, password), next.token); vault = next;
         const before = latest.map((s) => s.ticker).sort().join(), after = next.stocks.map((s) => s.ticker).sort().join();
@@ -195,5 +196,5 @@ Beleg.sync = (() => {
 
   function forget() { vault = null; password = ""; ls.set(PW_KEY, ""); }
 
-  return { init, unlock, setup, pull, change, replaceToken, forget, repo, readKoersen, writeTickers, ensureKoersKey, enabled: () => !!vault };
+  return { init, unlock, setup, pull, change, replaceToken, forget, repo, readKoersen, groups: () => vault?.groups || null, writeTickers, ensureKoersKey, enabled: () => !!vault };
 })();
