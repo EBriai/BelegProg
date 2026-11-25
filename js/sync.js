@@ -9,6 +9,9 @@ window.Beleg = window.Beleg || {};
 
 Beleg.sync = (() => {
   const PATH = "data/kluis.json";
+  // Lijst en tickers staan op een eigen branch, zodat niet elke wijziging
+  // de website opnieuw laat bouwen (GitHub Pages bouwt alleen vanaf main).
+  const BRANCH = "data";
   const API = "https://api.github.com";
   const ITER = 310000;
   const PW_KEY = "beleg.kluisWachtwoord";
@@ -66,14 +69,14 @@ Beleg.sync = (() => {
     return txt ? JSON.parse(txt) : null;
   }
   async function readFile() {
-    const f = await gh(`/repos/${repo()}/contents/${PATH}`, { allow404: true });
+    const f = await gh(`/repos/${repo()}/contents/${PATH}?ref=${BRANCH}`, { allow404: true });
     exists = !!f;
     if (!f) return null;
     lastSha = f.sha;
     return JSON.parse(atob(f.content.replace(/\s/g, "")));
   }
   async function writeFile(content, token) {
-    const body = { message: "Aandelenlijst bijgewerkt (versleuteld)", content: btoa(JSON.stringify(content, null, 1) + "\n") };
+    const body = { message: "Aandelenlijst bijgewerkt (versleuteld)", branch: BRANCH, content: btoa(JSON.stringify(content, null, 1) + "\n") };
     if (lastSha) body.sha = lastSha;
     const r = await gh(`/repos/${repo()}/contents/${PATH}`, { method: "PUT", body: JSON.stringify(body), token });
     lastSha = r?.content?.sha || lastSha;
@@ -105,8 +108,8 @@ Beleg.sync = (() => {
     const tickers = [...new Set(stocks.map((s) => s.ticker))].sort();
     const path = `/repos/${repo()}/contents/data/tickers.enc`;
     for (let i = 0; i < 3; i++) {
-      const cur = await gh(path, { allow404: true });
-      const body = { message: "Tickerlijst bijgewerkt (versleuteld)", content: btoa(JSON.stringify(await sealData({ tickers }, vault.koersKey)) + "\n") };
+      const cur = await gh(`${path}?ref=${BRANCH}`, { allow404: true });
+      const body = { message: "Tickerlijst bijgewerkt (versleuteld)", branch: BRANCH, content: btoa(JSON.stringify(await sealData({ tickers }, vault.koersKey)) + "\n") };
       if (cur) body.sha = cur.sha;
       try { await gh(path, { method: "PUT", body: JSON.stringify(body) }); return; }
       catch (e) { if (!e.conflict) throw e; }
@@ -148,6 +151,13 @@ Beleg.sync = (() => {
     return vault.stocks || [];
   }
 
+  // Maak de branch "data" aan (vanaf main) als hij nog niet bestaat.
+  async function ensureBranch(token) {
+    if (await gh(`/repos/${repo()}/git/ref/heads/${BRANCH}`, { allow404: true, token })) return;
+    const main = await gh(`/repos/${repo()}/git/ref/heads/main`, { token });
+    await gh(`/repos/${repo()}/git/refs`, { method: "POST", token, body: JSON.stringify({ ref: `refs/heads/${BRANCH}`, sha: main.object.sha }) });
+  }
+
   /** Eenmalig instellen: token + wachtwoord. De huidige lijst wordt de centrale lijst. */
   async function setup(token, pw, stocks) {
     if (pw.length < 8) throw new Error("Kies een wachtwoord van minstens 8 tekens.");
@@ -155,6 +165,7 @@ Beleg.sync = (() => {
     if (exists) throw new Error("Er bestaat al een centrale lijst. Gebruik Ontgrendelen met je wachtwoord.");
     const next = { token: token.trim(), stocks, koersKey: b64(crypto.getRandomValues(new Uint8Array(32))) };
     await setSecret(next.token, next.koersKey);   // eerst: zonder sleutel kan Actions niets
+    await ensureBranch(next.token);
     vault = next; password = pw;
     await writeTickers(stocks);
     await writeFile(await encrypt(next, pw), next.token);

@@ -26,12 +26,12 @@ Typ een ticker zoals je hem kent (`RHM`, `ASML`, `AAPL`) of een naam (`Rheinmeta
 kiest de hoofdnotering; andere beurzen kun je per aandeel kiezen, of vooraf met de beurskeuze
 naast het invoerveld. Koersen zijn gecorrigeerd voor splitsingen en dividend.
 
-De lijst met tickers (`data/tickers.enc`) en de koersen (branch `koersen`) zijn versleuteld
+De lijst met tickers (`data/tickers.enc`, ook op branch `data`) en de koersen (branch `koersen`) zijn versleuteld
 met een sleutel die alleen in je wachtwoordkluis en in het repository-secret `KOERS_KEY` staat.
 
 ## Gegevens: één centrale, versleutelde lijst
 
-Je aandelenlijst staat op één plek: `data/kluis.json` in deze repository, **versleuteld**
+Je aandelenlijst staat op één plek: `data/kluis.json` op de branch `data` van deze repository, **versleuteld**
 (AES-256) met een wachtwoord dat alleen jij kent. Het bestand zelf is zichtbaar, de inhoud
 (welke aandelen, en het GitHub-token waarmee de app opslaat) niet. Gebruik dus een goed
 wachtwoord: wie het raadt, kan de lijst lezen.
