@@ -25,10 +25,26 @@
     pendingDelete: null,
     waiting: false,   // wacht op GitHub Actions
   };
-  const EXCHANGES = [["", "Beurs: automatisch"], [".AS", "Amsterdam"], [".DE", "Xetra (Duitsland)"], [".F", "Frankfurt"], [".PA", "Parijs"],
-    [".BR", "Brussel"], [".L", "Londen"], [".MI", "Milaan"], [".MC", "Madrid"], [".SW", "Zwitserland"], [".ST", "Stockholm"],
-    [".CO", "Kopenhagen"], [".OL", "Oslo"], [".HE", "Helsinki"], [".VI", "Wenen"], [".LS", "Lissabon"], ["=US", "VS (NYSE/Nasdaq)"],
-    [".TO", "Toronto"], [".T", "Tokio"], [".HK", "Hongkong"], [".AX", "Australië"]];
+  // Beurzen: Yahoo-achtervoegsel, afkorting en volledige naam.
+  const EXCHANGES = [
+    [".AS", "AMS", "Euronext Amsterdam"], [".BR", "BRU", "Euronext Brussel"], [".PA", "PAR", "Euronext Parijs"],
+    [".LS", "LIS", "Euronext Lissabon"], [".IR", "ISE", "Euronext Dublin"],
+    [".DE", "XETRA / IBIS", "Xetra, Frankfurt (elektronisch)"], [".F", "FRA", "Börse Frankfurt (parket)"],
+    [".BE", "BER", "Börse Berlin"], [".DU", "DUS", "Börse Düsseldorf"], [".HM", "HAM", "Börse Hamburg"],
+    [".MU", "MUN", "Börse München"], [".SG", "STU", "Börse Stuttgart"],
+    [".L", "LSE", "London Stock Exchange"], [".MI", "MIL", "Borsa Italiana, Milaan"], [".MC", "BME", "Bolsa de Madrid"],
+    [".SW", "SIX", "SIX Swiss Exchange, Zürich"], [".VI", "VIE", "Wiener Börse"], [".WA", "WSE", "Warschau"],
+    [".ST", "STO", "Nasdaq Stockholm"], [".CO", "CPH", "Nasdaq Kopenhagen"], [".HE", "HEL", "Nasdaq Helsinki"], [".OL", "OSL", "Oslo Børs"],
+    ["=US", "NYSE / NASDAQ", "Verenigde Staten"], [".TO", "TSX", "Toronto Stock Exchange"],
+    [".T", "TSE", "Tokyo Stock Exchange"], [".HK", "HKEX", "Hong Kong Exchange"], [".AX", "ASX", "Australian Securities Exchange"],
+  ];
+  /** "XETRA / IBIS – Xetra, Frankfurt (elektronisch)" voor RHM.DE; anders wat Yahoo meegeeft. */
+  function exchLabel(symbol, yahooName) {
+    const m = /\.[A-Z]{1,3}$/.exec(symbol || "");
+    const e = m && EXCHANGES.find(([suf]) => suf === m[0]);
+    if (e) return `${e[1]} – ${e[2]}`;
+    return yahooName || "";
+  }
   const item = (t) => Beleg.prices.cached()?.items?.[t];
   const isPending = (s) => {
     const snap = Beleg.prices.cached(), it = snap?.items?.[s.ticker];
@@ -117,7 +133,7 @@
       const confirming = state.pendingDelete === s.ticker;
       const it = item(s.ticker);
       let sub, subClass = "";
-      if (it && !it.error) sub = [it.symbol !== s.ticker ? it.symbol : null, it.name, it.exchange, it.currency].filter(Boolean).join(" · ");
+      if (it && !it.error) sub = [it.symbol !== s.ticker ? it.symbol : null, it.name, exchLabel(it.symbol, it.exchange), it.currency].filter(Boolean).join(" · ");
       else if (isPending(s)) { sub = "Koersen worden opgehaald…"; subClass = "pending"; }
       else { sub = it.candidates?.length ? "Niet gevonden, kies hieronder een beurs" : "Niet gevonden bij Yahoo. Controleer de ticker."; subClass = "bad"; }
       const altList = (it?.candidates || []).filter((a) => a.symbol !== it?.symbol);
@@ -133,7 +149,7 @@
           ? '<button class="del-yes">Verwijderen</button><button class="del-no">Annuleer</button>'
           : `<button class="del" aria-label="${esc(s.ticker)} verwijderen">×</button>`}
         </div>
-        ${alts ? `<select class="alt" aria-label="Andere beurs voor ${esc(s.ticker)}"><option value="">${it.error ? "Kies de juiste notering…" : "Andere beurs kiezen…"}</option>${alts.map((a) => `<option value="${esc(a.symbol)}">${esc(a.symbol)} · ${esc(a.exchange)} · ${esc(a.name)}</option>`).join("")}</select>` : ""}`;
+        ${alts ? `<select class="alt" aria-label="Andere beurs voor ${esc(s.ticker)}"><option value="">${it.error ? "Kies de juiste notering…" : "Andere beurs kiezen…"}</option>${alts.map((a) => `<option value="${esc(a.symbol)}">${esc(a.symbol)} · ${esc(exchLabel(a.symbol, a.exchange))}</option>`).join("")}</select>` : ""}`;
       const altSel = li.querySelector(".alt");
       if (altSel) altSel.onchange = () => { if (altSel.value) replaceTicker(s.ticker, altSel.value); };
       li.querySelector("input").onchange = (e) => {
@@ -341,7 +357,9 @@
 
   // ---------- start ----------
   $("#add-form").onsubmit = (e) => { e.preventDefault(); addStock($("#ticker").value, $("#exchange").value); };
-  for (const [v, label] of EXCHANGES) { const o = document.createElement("option"); o.value = v; o.textContent = label; $("#exchange").appendChild(o); }
+  for (const [v, code, name] of [["", "Beurs: automatisch (hoofdbeurs)", ""], ...EXCHANGES]) {
+    const o = document.createElement("option"); o.value = v; o.textContent = name ? `${code} – ${name}` : code; $("#exchange").appendChild(o);
+  }
   $("#start").onchange = () => { state.range = "custom"; renderRanges(); drawChart(); };
   darkMq.addEventListener("change", () => { renderList(); drawChart(); });
   new MutationObserver(() => { renderList(); drawChart(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
