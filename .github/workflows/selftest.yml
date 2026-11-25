@@ -1,0 +1,27 @@
+# Test of Yahoo vanuit GitHub bereikbaar is, met een paar bekende (openbare) tickers.
+# Resultaat (onversleuteld, alleen deze testtickers) komt op de branch "selftest".
+name: Zelftest koersen
+on:
+  push:
+    branches: [main]
+    paths: [scripts/**, .github/workflows/selftest.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet --upgrade yfinance cryptography
+      - run: python scripts/koersen.py --selftest RHM.DE ASML.AS AAPL ^AEX RHM Rheinmetall
+      - run: |
+          cd out
+          git init -q -b selftest
+          git add selftest.json
+          git -c user.name="koersen-bot" -c user.email="actions@github.com" commit -q -m "Zelftest"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" selftest
