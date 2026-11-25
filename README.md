@@ -27,17 +27,27 @@ Lokaal proberen kan ook: `python -m http.server` in deze map en open http://loca
 Koersen worden in de browser bewaard: de volledige historie één keer, daarna hooguit één
 keer per dag de laatste dagen erbij.
 
-## Gegevens
+## Gegevens: één centrale lijst
 
-Je lijst staat in de browser van het apparaat zelf (localStorage). Telefoon en pc delen
-dus nog niets: gebruik Instellingen → Exporteren / Importeren om je lijst over te zetten.
+Je aandelenlijst kan op één plek staan: een geheime (niet openbare) gist in je eigen
+GitHub-account. Pc en telefoon lezen en schrijven dezelfde lijst.
+
+1. Maak een token: https://github.com/settings/tokens/new?scopes=gist&description=Koersvergelijker
+   (vink alleen **gist** aan en kies een vervaldatum).
+2. In de app: Instellingen → plak het token → **Koppelen**. Doe dit op elk apparaat
+   (hetzelfde token mag).
+
+Het token blijft alleen in de browser van dat apparaat staan en komt nooit in de repository.
+Het geeft alleen toegang tot je gists, niet tot je repositories. Zonder koppeling bewaart de
+app de lijst alleen op het apparaat zelf. Koersen worden per apparaat gecachet.
 
 ## Opbouw (voor uitbreidingen)
 
 ```
 index.html          pagina
 style.css           opmaak (kleuren als variabelen, licht en donker)
-js/storage.js       alle opslag; later te vervangen door synchronisatie
+js/storage.js       opslag in de browser
+js/sync.js          centrale lijst via een GitHub-gist
 js/providers.js     koersbronnen; nieuwe bron = object met lookup() en history()
 js/prices.js        koerscache en dagelijkse update
 js/analysis.js      rekenwerk (uitlijnen, normaliseren), puur en testbaar

@@ -1,6 +1,6 @@
 // Gebruikersinterface: verbindt opslag, koersen en grafiek.
 (() => {
-  const { storage, prices, analysis, providers } = Beleg;
+  const { storage, prices, analysis, providers, sync } = Beleg;
   const PALETTE = {
     light: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"],
     dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"],
@@ -36,6 +36,47 @@
     return i;
   };
 
+  // Geef elk aandeel een eigen kleur; bestaande kleuren blijven staan.
+  function fixColors(list) {
+    const used = new Set();
+    for (const s of list) {
+      if (s.color == null || used.has(s.color)) { let i = 0; while (used.has(i)) i++; s.color = i; }
+      used.add(s.color);
+    }
+    return list;
+  }
+
+  function setSync(text, err = false) { const t = $("#sync-status"); t.textContent = text; t.classList.toggle("err", err); }
+
+  /** Alle wijzigingen aan de lijst lopen hierlangs: centraal (gist) als dat
+   *  is ingesteld, anders alleen op dit apparaat. */
+  async function commit(mutate) {
+    if (sync.enabled()) {
+      setSync("Opslaan…");
+      try { state.stocks = fixColors(await sync.change(mutate)); setSync("Gesynchroniseerd"); }
+      catch (e) { setSync("Niet gesynchroniseerd", true); throw new Error(`Opslaan in GitHub mislukt: ${e.message}`); }
+    } else {
+      state.stocks = fixColors(mutate(state.stocks.map((s) => ({ ...s }))));
+    }
+    storage.saveStocks(state.stocks);
+  }
+
+  async function pullCentral(quiet = false) {
+    if (!sync.enabled()) { setSync("Alleen op dit apparaat"); return; }
+    if (!quiet) setSync("Ophalen…");
+    try {
+      const before = JSON.stringify(state.stocks.map((s) => s.ticker).sort());
+      state.stocks = fixColors(await sync.pull(state.stocks));
+      storage.saveStocks(state.stocks);
+      setSync("Gesynchroniseerd");
+      if (JSON.stringify(state.stocks.map((s) => s.ticker).sort()) !== before) {
+        const known = new Set(state.stocks.map((s) => s.ticker));
+        state.selected = new Set([...state.selected].filter((t) => known.has(t)));
+        renderList(); drawChart();
+      }
+    } catch (e) { setSync("Niet gesynchroniseerd", true); msg(e.message, true); }
+  }
+
   function msg(text, err = false) { const m = $("#msg"); m.textContent = text; m.classList.toggle("err", err); }
 
   // ---------- lijst ----------
@@ -68,10 +109,11 @@
         saveUi(); renderList(); drawChart();
       };
       if (confirming) {
-        li.querySelector(".del-yes").onclick = () => {
-          state.stocks = state.stocks.filter((x) => x.ticker !== s.ticker);
-          state.selected.delete(s.ticker); state.pendingDelete = null;
-          storage.saveStocks(state.stocks); storage.removePrices(s.ticker); saveUi();
+        li.querySelector(".del-yes").onclick = async () => {
+          state.pendingDelete = null;
+          try { await commit((list) => list.filter((x) => x.ticker !== s.ticker)); }
+          catch (e) { msg(e.message, true); renderList(); return; }
+          state.selected.delete(s.ticker); storage.removePrices(s.ticker); saveUi();
           msg(`${s.ticker} verwijderd.`); renderList(); drawChart();
         };
         li.querySelector(".del-no").onclick = () => { state.pendingDelete = null; renderList(); };
@@ -91,8 +133,8 @@
       const prov = providers.get(storage.getSettings().provider);
       const info = await prov.lookup(ticker);
       const full = await prices.loadFull(ticker);
-      state.stocks.push({ ticker, name: info.name, currency: info.currency, color: freeColor(), addedAt: new Date().toISOString() });
-      storage.saveStocks(state.stocks);
+      const entry = { ticker, name: info.name, currency: info.currency, color: freeColor(), addedAt: new Date().toISOString() };
+      await commit((list) => (list.some((x) => x.ticker === ticker) ? list : [...list, entry]));
       if (state.selected.size < MAX) state.selected.add(ticker);
       saveUi();
       msg(`${ticker} toegevoegd (${full.days.length.toLocaleString("nl-NL")} koersen vanaf ${full.days[0] ?? "–"}).`);
@@ -195,14 +237,30 @@
     try { await navigator.clipboard.writeText(txt); msg("Je lijst is gekopieerd. Plak hem op je andere apparaat bij Importeren."); }
     catch { $("#transfer").select(); msg("Kopieer de geselecteerde tekst en plak die op je andere apparaat."); }
   };
-  $("#import").onclick = () => {
+  $("#import").onclick = async () => {
     try {
       storage.importAll(JSON.parse($("#transfer").value));
-      state.stocks = storage.getStocks();
-      state.stocks.forEach((s, i) => { if (s.color == null) s.color = i; });
+      const imported = storage.getStocks();
+      await commit(() => imported);
       renderSettings(); renderList(); drawChart(); msg(`${state.stocks.length} aandelen geïmporteerd.`);
     } catch (e) { msg(`Importeren mislukt: ${e.message}`, true); }
   };
+
+  $("#gh-token").value = sync.getToken() ? "••••••••" : "";
+  $("#gh-connect").onclick = async () => {
+    const t = $("#gh-token").value.trim();
+    if (!t || t.startsWith("•")) { msg("Plak eerst je GitHub-token in het veld.", true); return; }
+    sync.setToken(t); $("#gh-token").value = "••••••••";
+    msg("Koppelen met GitHub…");
+    await pullCentral();
+    if (sync.enabled() && $("#sync-status").textContent === "Gesynchroniseerd") msg(`Gekoppeld. Je lijst staat nu centraal (${state.stocks.length} aandelen).`);
+    renderList(); drawChart();
+  };
+  $("#gh-disconnect").onclick = () => {
+    sync.setToken(""); $("#gh-token").value = "";
+    setSync("Alleen op dit apparaat"); msg("Ontkoppeld. Je lijst blijft op dit apparaat staan; de centrale lijst in GitHub blijft bestaan.");
+  };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pullCentral(true); });
 
   // ---------- start ----------
   $("#add-form").onsubmit = (e) => { e.preventDefault(); addStock($("#ticker").value); };
@@ -218,6 +276,7 @@
     $("#banner-slot").appendChild(b);
   }
   renderSettings(); renderRanges(); renderList(); drawChart();
+  if (!window.BELEG_ARTIFACT) pullCentral(); else setSync("");
 
   if ("serviceWorker" in navigator && !window.BELEG_NO_SW) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

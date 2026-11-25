@@ -21,6 +21,7 @@
   <div class="wrap top-inner">
     <h1>Koersvergelijker</h1>
     <span class="tag" id="mode-tag"></span>
+    <span class="sync" id="sync-status" role="status"></span>
   </div>
 </header>
 <div class="wrap" id="banner-slot"></div>
@@ -42,6 +43,10 @@
         <label for="twelve-key">Twelve Data API-sleutel (gratis op twelvedata.com)</label>
         <input id="twelve-key" autocomplete="off" spellcheck="false">
       </div>
+      <label for="gh-token">Centrale lijst via GitHub (token met alleen het recht "gist")</label>
+      <p class="hint">Eén keer per apparaat. <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=Koersvergelijker" target="_blank" rel="noopener">Maak hier een token aan</a> (vink alleen "gist" aan, kies een vervaldatum) en plak hem hieronder. Hetzelfde token mag op pc en telefoon.</p>
+      <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+      <div class="row"><button id="gh-connect" type="button">Koppelen</button><button id="gh-disconnect" type="button">Ontkoppelen</button></div>
       <label for="transfer">Lijst overzetten naar ander apparaat</label>
       <textarea id="transfer" rows="3" placeholder="Druk op Exporteren, of plak hier een export en druk op Importeren"></textarea>
       <div class="row"><button id="export" type="button">Exporteren</button><button id="import" type="button">Importeren</button></div>
@@ -74,6 +79,7 @@
 <script src="js/analysis.js"></script>
 <script src="js/providers.js"></script>
 <script src="js/prices.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 <!--BODY-END-->
 </body>
